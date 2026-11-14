@@ -146,3 +146,9 @@ Todos os pontos ficam salvos no arquivo **[`mpe.config.json`](file:///c:/Projeto
 
 ### Editar ou excluir um ponto
 - **Clique direito** sobre a estrela (sem arrastar) abre o Forjador daquele ponto, com o botao **`Excluir Ponto`**.
+
+---
+
+## Posicao da Janela Flutuante (Canto Salvo)
+
+Arraste a janela do Katharos pelo cabecalho ou pelo mascote e solte perto de um canto da tela: ela desliza ate o canto mais proximo e o Katharos grava a escolha em `codigo/mpe.config.json`, na chave `ui.miniCorner` (`{ "corner": "tl" | "tr" | "bl" | "br", "displayId": <monitor> }`). Nas proximas aberturas (bandeja, atalho de teclado, Shift+Ctrl+Botao Direito ou inicializacao) a janela aparece no mesmo canto. Se o monitor salvo nao estiver mais conectado, ela usa o canto equivalente do monitor principal. Para voltar a abrir perto do cursor, use Ajustes > Basico > "Abrir perto do cursor".

@@ -12,6 +12,17 @@ Este arquivo na raiz de `c:\Projetos\katharos nous` define o contexto permanente
 
 ---
 
+## 0. Destinos: Perguntar, Procurar, Guardar
+Cada mensagem tem um destino, escolhido pelos tres botoes da tela ou por um codigo no inicio do texto:
+- `@ia` (ou `@perguntar`): vai para a I.A local, que responde.
+- `@local` (ou `@procurar`): NAO vai para a I.A. Busca direto nos arquivos, notas e memoria (igual a `/buscar`).
+- `@nota` (ou `@guardar`): NAO vai para a I.A. Grava o texto como anotacao no Obsidian (`Katharos_Notas`).
+- Sem codigo, vale o botao escolhido ou a acao padrao definida em Ajustes > Basico.
+- Comandos de busca e consulta (`/rapido`, `/buscar`, `/arquivos`, `/extrato`, `/saldo`, `/recibo`, `/obsidian`, `/memoria`, `/status`, `/historico`) nao passam pela I.A.
+- `/historico [termo]`: lista os ultimos dias de conversa ou busca no historico local, gravado em `./arquivos/Historico/AAAA-MM-DD.md`.
+
+---
+
 ## 1. Busca Ultra-Rapida de Documentos (< 5ms)
 - `/rapido <termo>` (aliases: `/fast`, `/achar`, `/localizar`, `/doc`): executa busca indexada imediata em memoria nos documentos salvos, notas do Obsidian, memoria permanente e modelos de texto, exibindo tempo de resposta em milissegundos e trechos relevantes sem aguardar inferencia do LLM.
 - `/buscar <termo>`: pesquisa unificada detalhada em `./arquivos`, Obsidian Vault e memoria.
