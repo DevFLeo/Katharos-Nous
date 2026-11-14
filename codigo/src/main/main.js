@@ -45,6 +45,7 @@ const StartupManager = require('./startupManager');
 const HookBridge = require('./hookBridge');
 const ActionExecutor = require('./actionExecutor');
 const LocalAiService = require('./localAiService');
+const { nearestCorner, cornerBounds, pickDisplay } = require('./cornerSnap');
 
 const CODE_DIR = path.resolve(__dirname, '..', '..');
 const ROOT_DIR = path.resolve(CODE_DIR, '..');
@@ -89,6 +90,62 @@ if (!gotTheLock) {
 
 const MINI_DEFAULT_SIZE = { width: 576, height: 220 };
 let miniDragTimer = null;
+let miniDragMoved = false;
+let miniSnapTimer = null;
+
+function getSavedMiniCorner() {
+  const cfg = configManager.get();
+  return (cfg && cfg.ui && cfg.ui.miniCorner) || null;
+}
+
+function animateMiniTo(target) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (miniSnapTimer) clearInterval(miniSnapTimer);
+  const from = mainWindow.getBounds();
+  const steps = 8;
+  let i = 0;
+  miniSnapTimer = setInterval(() => {
+    i++;
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      clearInterval(miniSnapTimer);
+      miniSnapTimer = null;
+      return;
+    }
+    const t = 1 - Math.pow(1 - i / steps, 3);
+    mainWindow.setBounds({
+      x: Math.round(from.x + (target.x - from.x) * t),
+      y: Math.round(from.y + (target.y - from.y) * t),
+      width: target.width,
+      height: target.height
+    });
+    if (i >= steps) {
+      clearInterval(miniSnapTimer);
+      miniSnapTimer = null;
+    }
+  }, 16);
+}
+
+function snapMiniToNearestCorner() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const b = mainWindow.getBounds();
+  const display = screen.getDisplayMatching(b);
+  const corner = nearestCorner(b, display.workArea);
+  animateMiniTo(cornerBounds(corner, { width: b.width, height: b.height }, display.workArea));
+  try {
+    const cfg = configManager.get();
+    configManager.save({ ui: Object.assign({}, cfg.ui, { miniCorner: { corner, displayId: display.id } }) });
+  } catch (err) {
+    logDebug(`[MINI CORNER SAVE FAILED] ${err.message}`);
+  }
+  logDebug(`[MINI CORNER] ${corner} display=${display.id}`);
+}
+
+function endMiniDrag() {
+  const wasDragging = Boolean(miniDragTimer);
+  const moved = miniDragMoved;
+  stopMiniDrag();
+  if (wasDragging && moved) snapMiniToNearestCorner();
+}
 
 function stopMiniDrag() {
   if (miniDragTimer) {
@@ -104,12 +161,14 @@ function startMiniDrag() {
   const [wx, wy] = mainWindow.getPosition();
   const offX = start.x - wx;
   const offY = start.y - wy;
+  miniDragMoved = false;
   miniDragTimer = setInterval(() => {
     if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible()) {
       stopMiniDrag();
       return;
     }
     const p = screen.getCursorScreenPoint();
+    if (Math.abs(p.x - start.x) > 4 || Math.abs(p.y - start.y) > 4) miniDragMoved = true;
     const [w, h] = mainWindow.getSize();
     mainWindow.setBounds({ x: p.x - offX, y: p.y - offY, width: w, height: h });
   }, 8);
@@ -126,6 +185,11 @@ function resizeMiniWindow({ width, height } = {}) {
   const wa = display.workArea;
   const w = Math.max(260, Math.min(Math.round(width), wa.width));
   const h = Math.max(120, Math.min(Math.round(height), wa.height));
+  const saved = getSavedMiniCorner();
+  if (saved && !miniDragTimer) {
+    mainWindow.setBounds(cornerBounds(saved.corner, { width: w, height: h }, wa));
+    return;
+  }
   const x = Math.max(wa.x, Math.min(b.x, wa.x + wa.width - w));
   const y = Math.max(wa.y, Math.min(b.y, wa.y + wa.height - h));
   mainWindow.setBounds({ x, y, width: w, height: h });
@@ -158,6 +222,14 @@ async function summonMiniAssistant({ x, y, source = 'mouse-hook', openChat = fal
   if (winY + h > wa.y + wa.height) winY = targetY - h - 18;
   winX = Math.max(wa.x, Math.min(winX, wa.x + wa.width - w));
   winY = Math.max(wa.y, Math.min(winY, wa.y + wa.height - h));
+
+  const savedCorner = getSavedMiniCorner();
+  if (savedCorner) {
+    const display = pickDisplay(screen.getAllDisplays(), screen.getPrimaryDisplay().id, savedCorner.displayId);
+    const placed = cornerBounds(savedCorner.corner, { width: w, height: h }, display.workArea);
+    winX = placed.x;
+    winY = placed.y;
+  }
   mainWindow.setBounds({ x: Math.round(winX), y: Math.round(winY), width: w, height: h });
 
   mainWindow.show();
@@ -612,7 +684,7 @@ function setupIpcHandlers() {
   });
 
   ipcMain.on('mpe:mini-drag-start', () => startMiniDrag());
-  ipcMain.on('mpe:mini-drag-end', () => stopMiniDrag());
+  ipcMain.on('mpe:mini-drag-end', () => endMiniDrag());
   ipcMain.on('mpe:mini-resize', (_e, size) => resizeMiniWindow(size));
 
   ipcMain.handle('mpe:hide-hud', () => {

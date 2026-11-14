@@ -37,6 +37,7 @@ const ConfigManager = require('../src/main/configManager');
 const LlamafileManager = require('../src/main/llamafileManager');
 const LocalAiService = require('../src/main/localAiService');
 const { resolveRoute } = require('../src/main/routeResolver');
+const { nearestCorner, cornerBounds, pickDisplay } = require('../src/main/cornerSnap');
 
 const results = [];
 
@@ -656,6 +657,27 @@ async function main() {
       assert.strictEqual(fixed.ui.defaultRoute, 'ia');
       assert.strictEqual(fixed.ui.miniCorner, null);
     } finally { rmSafe(tmpRoot); }
+  });
+  await runCase('Rotas', 'K1', 'canto mais proximo pelo centro', () => {
+    const wa = { x: 0, y: 0, width: 1920, height: 1040 };
+    assert.strictEqual(nearestCorner({ x: 10, y: 10, width: 576, height: 220 }, wa), 'tl');
+    assert.strictEqual(nearestCorner({ x: 1300, y: 700, width: 576, height: 220 }, wa), 'br');
+    assert.strictEqual(nearestCorner({ x: 1300, y: 10, width: 576, height: 220 }, wa), 'tr');
+    assert.strictEqual(nearestCorner({ x: 20, y: 800, width: 576, height: 220 }, wa), 'bl');
+    assert.strictEqual(nearestCorner({ x: 2100, y: 300, width: 576, height: 220 }, { x: 1920, y: 0, width: 1280, height: 1000 }), 'tl');
+  });
+  await runCase('Rotas', 'K2', 'bounds do canto com margem e janela maior que a tela', () => {
+    const wa = { x: 100, y: 50, width: 1000, height: 500 };
+    assert.deepStrictEqual(cornerBounds('br', { width: 300, height: 200 }, wa), { x: 788, y: 338, width: 300, height: 200 });
+    assert.deepStrictEqual(cornerBounds('tl', { width: 300, height: 200 }, wa), { x: 112, y: 62, width: 300, height: 200 });
+    assert.deepStrictEqual(cornerBounds('br', { width: 1200, height: 900 }, wa), { x: 100, y: 50, width: 1000, height: 500 });
+  });
+  await runCase('Rotas', 'K3', 'monitor salvo inexistente cai no principal', () => {
+    const ds = [{ id: 1, workArea: {} }, { id: 2, workArea: {} }];
+    assert.strictEqual(pickDisplay(ds, 1, 2).id, 2);
+    assert.strictEqual(pickDisplay(ds, 1, 99).id, 1);
+    assert.strictEqual(pickDisplay(ds, 1, null).id, 1);
+    assert.strictEqual(pickDisplay(ds, 5, 99).id, 1);
   });
   //@@ROTAS_NEXT@@
 
