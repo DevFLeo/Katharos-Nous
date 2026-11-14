@@ -36,6 +36,7 @@ Module._load = function patchedLoad(request, parent, isMain) {
 const ConfigManager = require('../src/main/configManager');
 const LlamafileManager = require('../src/main/llamafileManager');
 const LocalAiService = require('../src/main/localAiService');
+const { resolveRoute } = require('../src/main/routeResolver');
 
 const results = [];
 
@@ -190,6 +191,7 @@ async function main() {
   });
 
   await runCase('I.A Local (llamafile)', 'AI-06', 'Inferencia LLM real via llamafile + Qwen2.5-7B-Instruct (/v1/chat/completions)', async () => {
+    if (process.env.KATHAROS_SKIP_LLM === '1') return 'PULADO (KATHAROS_SKIP_LLM=1)';
     const svc = new LocalAiService(ROOT_DIR, realCm, CODE_DIR);
     // Isola historico/persistencia em memoria para nao enviar turnos antigos da sessao desktop nem sujar data/ai-memory.json
     const mem = svc.memory.load();
@@ -546,6 +548,35 @@ async function main() {
     assert.ok(!html.includes('id="modal-point"') && !html.includes('id="organizer-workspace"'), 'HTML do Katharos nao deve incluir modais exclusivos do M.P.E');
     return `Todos os ${requiredIds.length} IDs estruturais do Katharos Nous presentes`;
   });
+
+  // =========================================================================
+  // SUITE R: Rotas (Perguntar / Procurar / Guardar), canto da janela e historico
+  // =========================================================================
+  await runCase('Rotas', 'R1', 'codigo @ia define rota ia', () => {
+    const r = resolveRoute('@ia qual meu saldo?', 'local');
+    assert.deepStrictEqual(r, { route: 'ia', cleanText: 'qual meu saldo?', source: 'code' });
+  });
+  await runCase('Rotas', 'R2', 'maiusculas e espacos extras', () => {
+    assert.strictEqual(resolveRoute('@IA  oi').cleanText, 'oi');
+    assert.strictEqual(resolveRoute('@Nota\nreceita').route, 'nota');
+    assert.strictEqual(resolveRoute('@local\n').cleanText, '');
+  });
+  await runCase('Rotas', 'R3', 'aliases em portugues', () => {
+    assert.strictEqual(resolveRoute('@procurar multa').route, 'local');
+    assert.strictEqual(resolveRoute('@guardar x').route, 'nota');
+    assert.strictEqual(resolveRoute('@perguntar x').route, 'ia');
+  });
+  await runCase('Rotas', 'R4', 'comandos / escolhem rota', () => {
+    assert.deepStrictEqual(resolveRoute('/buscar extrato'), { route: 'local', cleanText: '/buscar extrato', source: 'command' });
+    assert.strictEqual(resolveRoute('/lembrar fato').route, 'nota');
+    assert.strictEqual(resolveRoute('/resumir pdf').route, 'ia');
+  });
+  await runCase('Rotas', 'R5', 'sem codigo usa o padrao', () => {
+    assert.deepStrictEqual(resolveRoute('oi', 'nota'), { route: 'nota', cleanText: 'oi', source: 'default' });
+    assert.strictEqual(resolveRoute('oi').route, 'ia');
+    assert.strictEqual(resolveRoute('email@local.com').source, 'default');
+  });
+  //@@ROTAS_NEXT@@
 
   const passed = results.filter((r) => r.status === 'PASS').length;
   const failed = results.filter((r) => r.status === 'FAIL').length;

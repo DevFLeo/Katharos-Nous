@@ -8,3 +8,5 @@ codigo/models/*.exe
 prints/
 arquivos/
 *.log
+
+.superpowers/
