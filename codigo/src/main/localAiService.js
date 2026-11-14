@@ -9,6 +9,7 @@ const AiMemory = require('./aiMemory');
 const ObsidianIndex = require('./obsidianIndex');
 const LlamafileManager = require('./llamafileManager');
 const AiDocuments = require('./aiDocuments');
+const { resolveRoute, normalizeRoute } = require('./routeResolver');
 
 /**
  * Servico de I.A Local, Contexto Raiz e Integracao com Obsidian (Katharos Nous | katharos AI)
@@ -929,22 +930,76 @@ class LocalAiService {
   // =========================================================================
   // CHAT (ponto de entrada do drawer lateral)
   // =========================================================================
-  async chat({ message, mode = 'free', tone = 'profissional' } = {}, { onChunk, onStatus } = {}) {
+  getDefaultRoute() {
+    try {
+      const cfg = this.configManager && typeof this.configManager.get === 'function' ? this.configManager.get() : null;
+      return normalizeRoute(cfg && cfg.ui && cfg.ui.defaultRoute, 'ia');
+    } catch (_) {
+      return 'ia';
+    }
+  }
+
+  async saveNoteQuick(text) {
+    const body = String(text || '').trim();
+    const firstLine = body.split(/\r?\n/)[0] || '';
+    const title = firstLine.slice(0, 40).trim() || `Nota_${Date.now()}`;
+    try {
+      const res = await this.saveToObsidian({ title, text: body });
+      return res || { ok: false, error: 'sem resposta' };
+    } catch (err) {
+      return { ok: false, error: String((err && err.message) || err) };
+    }
+  }
+
+  async chat({ message, mode = 'free', tone = 'profissional', route } = {}, { onChunk, onStatus } = {}) {
     const text = String(message || '').trim();
     if (!text) return { ok: false, text: 'Mensagem vazia.' };
 
+    const resolved = resolveRoute(text, normalizeRoute(route, this.getDefaultRoute()));
+    let res;
     try {
-      if (text.startsWith('/')) {
-        return await this.handleCommand(text, { tone, onChunk, onStatus });
-      }
-
-      const taskByMode = { review: 'review', code: 'code', draft: 'draft', obsidian: 'obsidian', free: 'chat' };
-      const task = taskByMode[mode] || 'chat';
-      return await this.runTask(task, text, { tone, onChunk, onStatus });
+      res = await this._chatByRoute(resolved, { mode, tone, onChunk, onStatus });
     } catch (err) {
       const cleanMsg = String(err.message || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180);
-      return { ok: false, text: `Erro na I.A local: ${cleanMsg}` };
+      res = { ok: false, text: `Erro na I.A local: ${cleanMsg}` };
     }
+    res = Object.assign({}, res, { route: resolved.route, routeSource: resolved.source });
+    return res;
+  }
+
+  async _chatByRoute({ route, cleanText }, { mode, tone, onChunk, onStatus }) {
+    if (cleanText.startsWith('/')) {
+      return await this.handleCommand(cleanText, { tone, onChunk, onStatus });
+    }
+
+    if (!cleanText) {
+      const what = route === 'local' ? 'encontrar' : route === 'nota' ? 'guardar' : 'perguntar';
+      return { ok: false, text: `Escreva o que quer ${what}.`, source: 'route' };
+    }
+
+    if (route === 'local') {
+      const found = await this.handleCommand(`/buscar ${cleanText}`, { tone, onChunk, onStatus });
+      return Object.assign({}, found, {
+        text: `Busca nos seus arquivos, sem passar pela inteligencia.\n\n${(found && found.text) || ''}`
+      });
+    }
+
+    if (route === 'nota') {
+      const saved = await this.saveNoteQuick(cleanText);
+      if (saved && saved.ok) {
+        return {
+          ok: true,
+          source: 'route',
+          text: `Guardei em ${saved.folder} como "${saved.fileName}". Nada foi enviado para a inteligencia.`,
+          savedNote: { fileName: saved.fileName, folder: saved.folder }
+        };
+      }
+      return { ok: false, source: 'route', text: `Nao consegui guardar: ${(saved && saved.error) || 'erro desconhecido'}` };
+    }
+
+    const taskByMode = { review: 'review', code: 'code', draft: 'draft', obsidian: 'obsidian', free: 'chat' };
+    const task = taskByMode[mode] || 'chat';
+    return await this.runTask(task, cleanText, { tone, onChunk, onStatus });
   }
 
   async runTask(task, text, { tone, onChunk, onStatus, useHistory, extraContext = '' } = {}) {

@@ -543,13 +543,13 @@ function setupIpcHandlers() {
     return res.filePaths[0];
   });
 
-  ipcMain.handle('mpe:ai-chat', async (event, { message, mode, tone, requestId } = {}) => {
+  ipcMain.handle('mpe:ai-chat', async (event, { message, mode, tone, route, requestId } = {}) => {
     const sender = event.sender;
     const send = (channel, data) => {
       if (!sender.isDestroyed()) sender.send(channel, Object.assign({ requestId }, data));
     };
     return await localAiService.chat(
-      { message, mode, tone },
+      { message, mode, tone, route },
       {
         onChunk: (delta) => send('mpe:ai-chat-chunk', { delta }),
         onStatus: (status) => send('mpe:ai-chat-status', { status })

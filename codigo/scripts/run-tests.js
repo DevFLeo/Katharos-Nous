@@ -576,6 +576,57 @@ async function main() {
     assert.strictEqual(resolveRoute('oi').route, 'ia');
     assert.strictEqual(resolveRoute('email@local.com').source, 'default');
   });
+  const makeIsolatedSvc = () => {
+    const tmpRoot = makeTempDir('katharos-rota-');
+    const tmpCode = path.join(tmpRoot, 'codigo');
+    fs.mkdirSync(tmpCode, { recursive: true });
+    const cm = new ConfigManager(tmpRoot, tmpCode);
+    const cfg = cm.load();
+    cfg.ai.provider = 'offline';
+    cm.save(cfg);
+    const svc = new LocalAiService(tmpRoot, cm, tmpCode);
+    return { svc, cm, tmpRoot, tmpCode };
+  };
+  await runCase('Rotas', 'R6', 'chat @local busca sem LLM', async () => {
+    const { svc, tmpRoot } = makeIsolatedSvc();
+    try {
+      let llmCalls = 0;
+      svc.runTask = async () => { llmCalls++; return { ok: true, text: 'x' }; };
+      const res = await svc.chat({ message: '@local extrato' });
+      assert.strictEqual(res.route, 'local');
+      assert.strictEqual(llmCalls, 0);
+      assert.ok(res.text.startsWith('Busca nos seus arquivos'), res.text);
+    } finally { rmSafe(tmpRoot); }
+  });
+  await runCase('Rotas', 'R7', 'chat @nota grava e nao chama LLM', async () => {
+    const { svc, tmpRoot } = makeIsolatedSvc();
+    try {
+      let llmCalls = 0;
+      svc.runTask = async () => { llmCalls++; return { ok: true, text: 'x' }; };
+      svc.saveToObsidian = async ({ title }) => ({ ok: true, fileName: title + '.md', folder: 'Katharos_Notas' });
+      const res = await svc.chat({ message: '@nota Bolo da vo: 3 ovos' });
+      assert.strictEqual(res.route, 'nota');
+      assert.ok(res.ok);
+      assert.ok(res.text.includes('Guardei'), res.text);
+      assert.strictEqual(llmCalls, 0);
+    } finally { rmSafe(tmpRoot); }
+  });
+  await runCase('Rotas', 'R8', 'codigo vazio e falha ao guardar', async () => {
+    const { svc, tmpRoot } = makeIsolatedSvc();
+    try {
+      const r1 = await svc.chat({ message: '@local' });
+      assert.strictEqual(r1.ok, false);
+      assert.ok(r1.text.includes('encontrar'), r1.text);
+      svc.saveToObsidian = async () => ({ ok: false, error: 'Cofre inacessivel' });
+      const r2 = await svc.chat({ message: 'texto', route: 'nota' });
+      assert.strictEqual(r2.ok, false);
+      assert.ok(r2.text.includes('Cofre inacessivel'), r2.text);
+      svc.saveToObsidian = async () => { throw new Error('disco cheio'); };
+      const r3 = await svc.chat({ message: 'outro', route: 'nota' });
+      assert.strictEqual(r3.ok, false);
+      assert.ok(r3.text.includes('disco cheio'), r3.text);
+    } finally { rmSafe(tmpRoot); }
+  });
   //@@ROTAS_NEXT@@
 
   const passed = results.filter((r) => r.status === 'PASS').length;
