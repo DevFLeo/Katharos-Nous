@@ -345,13 +345,17 @@ function createWindow() {
             const drawer = document.getElementById('side-chat-drawer');
             return {
               chatOpen: Boolean(drawer && !drawer.classList.contains('hidden')),
-              msgCount: document.querySelectorAll('#side-chat-messages .side-msg').length
+              msgCount: document.querySelectorAll('#side-chat-messages .side-msg').length,
+              routeBtnCount: document.querySelectorAll('.route-bar .route-btn').length
             };
           })()
         `);
         console.log('KATHAROS_CHAT_TEST:', JSON.stringify(chatCheck));
         if (!chatCheck.chatOpen) {
           throw new Error('Side chat drawer did not open');
+        }
+        if (chatCheck.routeBtnCount !== 3) {
+          throw new Error('Route bar check failed: ' + JSON.stringify(chatCheck));
         }
         const imgChat = await mainWindow.webContents.capturePage();
         fs.writeFileSync(path.join(outDir, 'verify_2_katharos_chat.png'), imgChat.toPNG());

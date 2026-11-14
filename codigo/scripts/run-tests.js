@@ -679,6 +679,16 @@ async function main() {
     assert.strictEqual(pickDisplay(ds, 1, null).id, 1);
     assert.strictEqual(pickDisplay(ds, 5, 99).id, 1);
   });
+  await runCase('Rotas', 'R9', 'Chat com acoes Perguntar/Procurar/Guardar e status do destino', () => {
+    const html = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'index.html'), 'utf8');
+    const appJs = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'js', 'app.js'), 'utf8');
+    assert.ok(html.includes('class="route-bar"'), 'route-bar ausente');
+    for (const r of ['ia', 'local', 'nota']) {
+      assert.ok(html.includes(`class="route-btn" data-route="${r}"`), `route-btn ${r} ausente`);
+    }
+    assert.ok(html.includes('id="route-status"') && html.includes('id="btn-side-chat-tune"'), 'route-status ou btn-side-chat-tune ausente');
+    assert.ok(/aiChat\(\{[^}]*route/.test(appJs), 'aiChat deve receber route');
+  });
   //@@ROTAS_NEXT@@
 
   const passed = results.filter((r) => r.status === 'PASS').length;

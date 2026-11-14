@@ -7,6 +7,13 @@
 (function () {
   let currentConfig = null;
   let syncMiniWindowSizeRef = () => {};
+  let setRouteRef = () => {};
+
+  function applyUiPrefs(cfg) {
+    const ui = (cfg && cfg.ui) || {};
+    document.body.classList.toggle('large-text', Boolean(ui.largeText));
+    setRouteRef(ui.defaultRoute || 'ia');
+  }
   let toastTimer = null;
 
   function showToast(msg) {
@@ -138,6 +145,7 @@
 
   async function init() {
     currentConfig = await window.mpeApi.getConfig();
+    document.body.classList.toggle('large-text', Boolean(currentConfig && currentConfig.ui && currentConfig.ui.largeText));
 
     const noteFolderEl = document.getElementById('mini-note-folder');
     if (noteFolderEl && currentConfig.obsidian) {
@@ -446,17 +454,18 @@
       const card = document.getElementById('mini-sci-hud-card');
       const sideDrawer = document.getElementById('side-chat-drawer');
       if (!card || !window.mpeApi.miniResize) return;
+      const zoom = document.body.classList.contains('large-text') ? 1.25 : 1;
       const rect = card.getBoundingClientRect();
       const cardH = Math.ceil(rect.height) || 198;
-      const cardW = Math.max(Math.ceil(rect.width), card.scrollWidth, 560);
-      document.documentElement.style.setProperty('--mini-card-h', `${cardH}px`);
+      const cardW = Math.max(Math.ceil(rect.width), card.scrollWidth * zoom, 560);
+      document.documentElement.style.setProperty('--mini-card-h', `${Math.round(cardH / zoom)}px`);
       const drawerOpen = sideDrawer && !sideDrawer.classList.contains('hidden');
       const cmdsOpen = sideDrawer && sideDrawer.classList.contains('cmds-open');
       const hasOpenModal = document.querySelectorAll('.modal-backdrop:not(.hidden)').length > 0;
-      const width = hasOpenModal ? 820 : cardW + 16;
+      const width = hasOpenModal ? Math.round(820 * zoom) : cardW + 16;
       const height = hasOpenModal
-        ? 660
-        : cardH + 16 + (drawerOpen ? (cmdsOpen ? 554 : 474) : 0);
+        ? Math.round(660 * zoom)
+        : cardH + 16 + (drawerOpen ? Math.round((cmdsOpen ? 640 : 560) * zoom) : 0);
       window.mpeApi.miniResize({ width, height });
     }
     syncMiniWindowSizeRef = syncMiniWindowSize;
@@ -806,6 +815,89 @@
       const sentPromptHistory = [];
       let historyCursor = -1;
       let historyDraft = '';
+
+      // Rotas: Perguntar (ia) / Procurar (local) / Guardar (nota)
+      const ROUTE_UI = {
+        ia: { label: 'Perguntar', status: 'Vai para a inteligência', tag: 'perguntou' },
+        local: { label: 'Procurar', status: 'Não vai para a inteligência. Busca nos seus arquivos', tag: 'procurou' },
+        nota: { label: 'Guardar', status: 'Não vai para a inteligência. Guarda como anotação', tag: 'guardou' }
+      };
+      const ROUTE_CODE_RE = /^\s*@(ia|perguntar|local|procurar|nota|guardar)(?=\s|$)/i;
+      const ROUTE_CODE_MAP = { ia: 'ia', perguntar: 'ia', local: 'local', procurar: 'local', nota: 'nota', guardar: 'nota' };
+      const ROUTE_LOCAL_CMDS = ['rapido', 'fast', 'achar', 'localizar', 'doc', 'buscar', 'arquivos', 'extrato', 'saldo', 'recibo', 'obsidian', 'memoria', 'exemplos', 'status', 'param', 'historico'];
+      const ROUTE_NOTA_CMDS = ['salvar', 'salvar-arquivo', 'lembrar', 'treinar'];
+      let currentRoute = 'ia';
+
+      function detectRouteFromText(text) {
+        const raw = String(text || '');
+        const code = raw.match(ROUTE_CODE_RE);
+        if (code) return ROUTE_CODE_MAP[code[1].toLowerCase()];
+        const cmd = raw.trim().match(/^\/([a-z-]+)/i);
+        if (cmd) {
+          const c = cmd[1].toLowerCase();
+          return ROUTE_LOCAL_CMDS.includes(c) ? 'local' : ROUTE_NOTA_CMDS.includes(c) ? 'nota' : 'ia';
+        }
+        return null;
+      }
+
+      function setRouteClass(el, route) {
+        if (!el) return;
+        el.classList.remove('route-ia', 'route-local', 'route-nota');
+        el.classList.add(`route-${route}`);
+      }
+
+      function renderRoute() {
+        const fromText = sideInputEl ? detectRouteFromText(sideInputEl.value) : null;
+        const route = fromText || currentRoute;
+        const info = ROUTE_UI[route];
+        document.querySelectorAll('.route-btn').forEach((btn) => {
+          btn.setAttribute('aria-pressed', btn.dataset.route === route ? 'true' : 'false');
+        });
+        const statusBox = document.getElementById('route-status');
+        if (statusBox) {
+          statusBox.innerHTML = `<strong>${info.status}</strong>${fromText ? ' (definido pelo código)' : ''}`;
+          setRouteClass(statusBox, route);
+        }
+        const sendBtnEl = document.getElementById('btn-side-chat-send');
+        if (sendBtnEl) {
+          sendBtnEl.textContent = info.label;
+          setRouteClass(sendBtnEl, route);
+        }
+        setRouteClass(sideInputEl, route);
+        const placeholders = {
+          ia: 'Escreva sua pergunta aqui...',
+          local: 'Escreva o que quer encontrar...',
+          nota: 'Escreva o que quer guardar...'
+        };
+        if (sideInputEl) sideInputEl.placeholder = placeholders[route];
+      }
+
+      function setRoute(route) {
+        currentRoute = ROUTE_UI[route] ? route : 'ia';
+        renderRoute();
+      }
+      setRouteRef = setRoute;
+
+      document.querySelectorAll('.route-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          if (sideInputEl) {
+            sideInputEl.value = sideInputEl.value.replace(ROUTE_CODE_RE, '').replace(/^\s+/, '');
+          }
+          setRoute(btn.dataset.route);
+          if (sideInputEl) sideInputEl.focus();
+        });
+      });
+
+      const btnTune = document.getElementById('btn-side-chat-tune');
+      if (btnTune) {
+        btnTune.addEventListener('click', () => {
+          const params = document.querySelector('.side-chat-params');
+          if (!params) return;
+          const nowHidden = params.classList.toggle('hidden');
+          btnTune.setAttribute('aria-pressed', nowHidden ? 'false' : 'true');
+          syncMiniWindowSize();
+        });
+      }
 
       function autoResizeSideInput() {
         if (!sideInputEl) return;
@@ -1169,8 +1261,10 @@
         historyCursor = -1;
         historyDraft = '';
 
+        const sentRoute = detectRouteFromText(prompt) || currentRoute;
         input.value = '';
         autoResizeSideInput();
+        renderRoute();
         chatBusy = true;
         const sendBtn = document.getElementById('btn-side-chat-send');
         sendBtn.disabled = true;
@@ -1182,6 +1276,7 @@
           <div class="side-msg-header">
             <button type="button" class="side-msg-reuse-btn" title="Colocar mensagem de volta na caixa">Reusar</button>
             <span class="side-msg-author">VOCE</span>
+            <span class="side-msg-route route-${sentRoute}">${ROUTE_UI[sentRoute].tag}</span>
             <span class="side-msg-time">Agora</span>
           </div>
           <div class="side-msg-content">${escapeHtml(prompt)}</div>
@@ -1209,17 +1304,28 @@
         activeRequest = { id: requestId, content: contentEl, started: false };
 
         try {
-          const runChat = () => window.mpeApi.aiChat({ message: prompt, mode, tone, requestId });
+          const runChat = () => window.mpeApi.aiChat({ message: prompt, mode, tone, route: currentRoute, requestId });
           const res = katarosMascot
             ? await katarosMascot.runWithProcessing(runChat, { minDurationMs: 1500, subText: 'CHAT' })
             : await runChat();
           const finalText = (res && res.text) || 'Sem resposta.';
+          if (res && ROUTE_UI[res.route] && res.route !== sentRoute) {
+            const tagEl = userDiv.querySelector('.side-msg-route');
+            if (tagEl) {
+              tagEl.textContent = ROUTE_UI[res.route].tag;
+              setRouteClass(tagEl, res.route);
+            }
+          }
           contentEl.dataset.rawText = finalText;
           contentEl.innerHTML = formatSideMessageHtml(finalText);
           if (res && (res.source === 'llm' || res.source === 'builtin')) lastSideResponse = finalText;
           astDiv.querySelector('.side-msg-time').textContent =
             res && res.source === 'llm'
               ? 'Modelo local'
+              : res && res.route === 'local'
+              ? 'Busca nos arquivos'
+              : res && res.route === 'nota' && res.source === 'route'
+              ? 'Anotação'
               : res && res.source === 'command'
               ? 'Comando'
               : 'AI Kataros';
@@ -1260,7 +1366,10 @@
 
       document.getElementById('btn-side-chat-send').addEventListener('click', sendSideChatMessage);
       if (sideInputEl) {
-        sideInputEl.addEventListener('input', autoResizeSideInput);
+        sideInputEl.addEventListener('input', () => {
+          autoResizeSideInput();
+          renderRoute();
+        });
         sideInputEl.addEventListener('keydown', (e) => {
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -1367,6 +1476,7 @@
     }
 
     setupMiniAssistant();
+    applyUiPrefs(currentConfig);
 
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
@@ -1409,6 +1519,7 @@
 
         if (payload && payload.config) {
           currentConfig = payload.config;
+          applyUiPrefs(currentConfig);
           const folderEl = document.getElementById('mini-note-folder');
           if (folderEl && currentConfig.obsidian && currentConfig.obsidian.defaultFolder) {
             folderEl.value = currentConfig.obsidian.defaultFolder;
