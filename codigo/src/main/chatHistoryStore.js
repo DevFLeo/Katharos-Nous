@@ -3,9 +3,10 @@ const path = require('path');
 
 /**
  * Historico local das conversas do Katharos Nous.
- * Um arquivo Markdown por dia em <documentos>/Historico/AAAA-MM-DD.md, uma linha por mensagem:
+ * Um arquivo Markdown por dia em <baseDir>/Historico/AAAA-MM-DD.md, uma linha por mensagem:
  *   - HH:MM [voce|katharos][ia|local|nota] texto
- * Por ficar dentro da pasta de documentos, o indice de busca (/rapido, /buscar) ja encontra conversas antigas.
+ * Fica fora da pasta de documentos (padrao: codigo/data/Historico) para nao poluir a busca nem o contexto do modelo.
+ * A consulta e feita pelo comando /historico.
  */
 
 const DAY_FILE_RE = /^(\d{4}-\d{2}-\d{2})\.md$/;
@@ -23,17 +24,12 @@ function normalize(str) {
 }
 
 class ChatHistoryStore {
-  constructor(rootDir, { getDocumentsFolder } = {}) {
-    this.rootDir = rootDir;
-    this.getDocumentsFolder = typeof getDocumentsFolder === 'function' ? getDocumentsFolder : null;
+  constructor(baseDir) {
+    this.baseDir = baseDir;
   }
 
   getDir() {
-    let docs = null;
-    try {
-      docs = this.getDocumentsFolder ? this.getDocumentsFolder() : null;
-    } catch (_) {}
-    return path.join(docs || path.join(this.rootDir, 'arquivos'), 'Historico');
+    return path.join(this.baseDir, 'Historico');
   }
 
   append({ role, route, text, at } = {}) {

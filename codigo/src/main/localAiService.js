@@ -9,7 +9,7 @@ const AiMemory = require('./aiMemory');
 const ObsidianIndex = require('./obsidianIndex');
 const LlamafileManager = require('./llamafileManager');
 const AiDocuments = require('./aiDocuments');
-const { resolveRoute, normalizeRoute } = require('./routeResolver');
+const { resolveRoute, normalizeRoute, LOCAL_COMMANDS } = require('./routeResolver');
 const ChatHistoryStore = require('./chatHistoryStore');
 
 /**
@@ -224,7 +224,8 @@ class LocalAiService {
     this.obsidian = new ObsidianIndex();
     this.engine = new LlamafileManager(this.rootDir, this.codeDir);
     this.documents = new AiDocuments(this.rootDir, this.configManager, this.codeDir);
-    this.history = new ChatHistoryStore(this.rootDir, { getDocumentsFolder: () => this.documents.getDocumentsFolder() });
+    // Fora da pasta de documentos: conversas antigas nao entram na busca nem no contexto do modelo.
+    this.history = new ChatHistoryStore(path.join(this.codeDir, 'data'));
     this.lastAssistantText = '';
     this._exampleTokenCache = new WeakMap();
     this._rootContextCache = { mtimeMs: -1, content: '' };
@@ -978,16 +979,29 @@ class LocalAiService {
     try {
       this.history.append({ role: 'user', route, text: userText });
       if (res && res.text) {
-        this.history.append({ role: 'assistant', route, text: String(res.text).slice(0, 2000) });
+        // Busca e anotacao: grava so a primeira linha, para nao copiar trechos de extratos e documentos.
+        const answer = route === 'ia' ? String(res.text).slice(0, 2000) : String(res.text).split('\n')[0].slice(0, 200);
+        this.history.append({ role: 'assistant', route, text: answer });
       }
     } catch (err) {
       console.warn('[LocalAiService] Falha ao gravar historico:', err.message);
     }
   }
 
-  async _chatByRoute({ route, cleanText }, { mode, tone, onChunk, onStatus }) {
+  async _chatByRoute({ route, cleanText, source }, { mode, tone, onChunk, onStatus }) {
+    let searchText = cleanText;
     if (cleanText.startsWith('/')) {
-      return await this.handleCommand(cleanText, { tone, onChunk, onStatus });
+      // Um codigo escrito antes do comando vale mais que o comando: @local e @nota nunca chamam o modelo.
+      if (source === 'code' && route === 'local') {
+        const token = (cleanText.match(/^\/(\S+)/) || [])[1] || '';
+        const matched = resolveSlashCommand(token).matched;
+        if (matched && LOCAL_COMMANDS.has(matched)) {
+          return await this.handleCommand(cleanText, { tone, onChunk, onStatus });
+        }
+        searchText = cleanText.replace(/^\/\S+\s*/, '').trim() || token;
+      } else if (!(source === 'code' && route === 'nota')) {
+        return await this.handleCommand(cleanText, { tone, onChunk, onStatus });
+      }
     }
 
     if (!cleanText) {
@@ -996,7 +1010,7 @@ class LocalAiService {
     }
 
     if (route === 'local') {
-      const found = await this.handleCommand(`/buscar ${cleanText}`, { tone, onChunk, onStatus });
+      const found = await this.handleCommand(`/buscar ${searchText}`, { tone, onChunk, onStatus });
       return Object.assign({}, found, {
         text: `Busca nos seus arquivos, sem passar pela inteligencia.\n\n${(found && found.text) || ''}`
       });
@@ -2558,13 +2572,22 @@ class LocalAiService {
       fs.mkdirSync(targetDir, { recursive: true });
     }
 
-    const safeTitle = (title || `Nota_${Date.now()}`)
+    let safeTitle = String(title || '')
       .trim()
       .replace(/[\/\\:*?"<>|]/g, '')
-      .slice(0, 60);
+      .slice(0, 60)
+      .replace(/[. ]+$/, '')
+      .trim();
+    if (!safeTitle) safeTitle = `Nota_${Date.now()}`;
+    if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(safeTitle)) safeTitle = `${safeTitle}_nota`;
 
-    const fileName = `${safeTitle}.md`;
-    const filePath = path.join(targetDir, fileName);
+    // Nunca sobrescreve uma anotacao existente: acrescenta (2), (3)...
+    let fileName = `${safeTitle}.md`;
+    let filePath = path.join(targetDir, fileName);
+    for (let n = 2; fs.existsSync(filePath); n++) {
+      fileName = `${safeTitle} (${n}).md`;
+      filePath = path.join(targetDir, fileName);
+    }
 
     const tagList = Array.isArray(tags) && tags.length ? tags : ['mpe', 'notas'];
     const noteBody = content || text || '';

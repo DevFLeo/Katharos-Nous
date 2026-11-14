@@ -41,10 +41,10 @@ const { nearestCorner, cornerBounds, pickDisplay } = require('../src/main/corner
 const ChatHistoryStore = require('../src/main/chatHistoryStore');
 
 // Testes nunca gravam no historico real de conversas do usuario (somente em pastas temporarias)
-const REAL_DOCS_DIR = path.resolve(ROOT_DIR, 'arquivos');
+const REAL_HISTORY_DIR = path.resolve(CODE_DIR, 'data', 'Historico');
 const origHistoryAppend = ChatHistoryStore.prototype.append;
 ChatHistoryStore.prototype.append = function guardedAppend(entry) {
-  if (path.resolve(this.getDir()).startsWith(REAL_DOCS_DIR + path.sep)) return '';
+  if (path.resolve(this.getDir()) === REAL_HISTORY_DIR) return '';
   return origHistoryAppend.call(this, entry);
 };
 
@@ -89,7 +89,7 @@ function walkJs(dir) {
 }
 
 async function main() {
-  const realHistoryDir = path.join(ROOT_DIR, 'arquivos', 'Historico');
+  const realHistoryDir = REAL_HISTORY_DIR;
   const listRealHistory = () => (fs.existsSync(realHistoryDir) ? fs.readdirSync(realHistoryDir).map((f) => `${f}:${fs.statSync(path.join(realHistoryDir, f)).size}`).sort().join('|') : '');
   const realHistoryBefore = listRealHistory();
   const realCm = new ConfigManager(ROOT_DIR, CODE_DIR);
@@ -723,7 +723,7 @@ async function main() {
     try {
       const st = new ChatHistoryStore(dir);
       const p = st.append({ role: 'user', route: 'local', text: 'multa\ncontrato', at: new Date('2026-11-14T13:40:00') });
-      assert.ok(p.endsWith(path.join('arquivos', 'Historico', '2026-11-14.md')), p);
+      assert.strictEqual(p, path.join(dir, 'Historico', '2026-11-14.md'));
       assert.ok(fs.readFileSync(p, 'utf-8').includes('- 13:40 [voce][local] multa contrato'));
       assert.deepStrictEqual(st.listDays(), ['2026-11-14']);
     } finally { rmSafe(dir); }
@@ -750,7 +750,7 @@ async function main() {
       await svc.chat({ message: '/param perfil preciso' });
       assert.deepStrictEqual(svc.history.recentPrompts(), ['pergunta de teste']);
       const day = svc.history.listDays()[0];
-      const body = fs.readFileSync(path.join(tmpRoot, 'arquivos', 'Historico', `${day}.md`), 'utf-8');
+      const body = fs.readFileSync(path.join(svc.history.getDir(), `${day}.md`), 'utf-8');
       assert.ok(body.includes('[katharos][ia] resposta'), body);
     } finally { rmSafe(tmpRoot); }
   });
@@ -769,6 +769,61 @@ async function main() {
   });
   await runCase('Rotas', 'H5', 'bateria de testes nao grava no historico real do usuario', () => {
     assert.strictEqual(listRealHistory(), realHistoryBefore, 'Testes alteraram arquivos/Historico real');
+  });
+  await runCase('Rotas', 'F1', 'Guardar nunca sobrescreve anotacao existente e trata nomes invalidos', async () => {
+    const { svc, tmpRoot } = makeIsolatedSvc();
+    try {
+      const a = await svc.saveToObsidian({ title: 'Lista de compras', text: 'arroz' });
+      const b = await svc.saveToObsidian({ title: 'Lista de compras', text: 'feijao' });
+      assert.ok(a.ok && b.ok);
+      assert.notStrictEqual(a.filePath, b.filePath);
+      assert.ok(fs.readFileSync(a.filePath, 'utf8').includes('arroz'));
+      assert.ok(fs.readFileSync(b.filePath, 'utf8').includes('feijao'));
+      const c = await svc.saveToObsidian({ title: '???', text: 'x' });
+      assert.ok(c.ok && /^Nota_/.test(c.fileName), c.fileName);
+      const d = await svc.saveToObsidian({ title: 'con', text: 'x' });
+      assert.ok(d.ok && !/^con\.md$/i.test(d.fileName), d.fileName);
+      const e = await svc.saveToObsidian({ title: 'fim.', text: 'x' });
+      assert.ok(e.ok && !/\.\.md$/.test(e.fileName), e.fileName);
+    } finally { rmSafe(tmpRoot); }
+  });
+  await runCase('Rotas', 'F2', 'codigo antes de comando / vale o codigo (nada vai para a IA em @local/@nota)', async () => {
+    const { svc, tmpRoot } = makeIsolatedSvc();
+    try {
+      let llm = 0;
+      svc.runTask = async () => { llm++; return { ok: true, text: 'x', source: 'llm' }; };
+      let saved = null;
+      svc.saveToObsidian = async (p) => { saved = p; return { ok: true, fileName: 'n.md', folder: 'K' }; };
+      const n = await svc.chat({ message: '@nota /revisar texto' });
+      assert.strictEqual(n.route, 'nota');
+      assert.strictEqual(saved && saved.text, '/revisar texto');
+      const l = await svc.chat({ message: '@local /resumir contrato' });
+      assert.strictEqual(l.route, 'local');
+      assert.ok(l.text.startsWith('Busca nos seus arquivos'), l.text);
+      const l2 = await svc.chat({ message: '@local /buscar contrato' });
+      assert.ok(/RESULTADOS|Nenhum resultado/.test(l2.text), l2.text);
+      assert.strictEqual(llm, 0, 'nenhuma chamada ao modelo');
+      const i = await svc.chat({ message: '@ia /ajuda' });
+      assert.ok(i.text.includes('COMANDOS'));
+    } finally { rmSafe(tmpRoot); }
+  });
+  await runCase('Rotas', 'F3', 'historico fica fora dos documentos indexados e nao copia resultados de busca', async () => {
+    const { svc, tmpRoot, tmpCode } = makeIsolatedSvc();
+    try {
+      svc.runTask = async () => ({ ok: true, text: 'resposta da ia', source: 'llm' });
+      await svc.chat({ message: 'pergunta xyzabc' });
+      const docsDir = path.resolve(svc.documents.getDocumentsFolder());
+      assert.strictEqual(path.resolve(svc.history.getDir()), path.join(tmpCode, 'data', 'Historico'));
+      assert.ok(!path.resolve(svc.history.getDir()).startsWith(docsDir + path.sep));
+      assert.strictEqual(svc.documents.search('xyzabc', 5, 200).length, 0, 'historico nao pode aparecer na busca de documentos');
+      fs.mkdirSync(path.join(docsDir, 'Geral'), { recursive: true });
+      fs.writeFileSync(path.join(docsDir, 'Geral', 'contrato.txt'), 'multa de rescisao segredo123', 'utf8');
+      const l = await svc.chat({ message: '@local multa' });
+      assert.ok(l.text.includes('segredo123'), 'a busca deveria achar o trecho: ' + l.text);
+      const day = svc.history.listDays()[0];
+      const body = fs.readFileSync(path.join(svc.history.getDir(), `${day}.md`), 'utf8');
+      assert.ok(!body.includes('segredo123'), body);
+    } finally { rmSafe(tmpRoot); }
   });
   //@@ROTAS_NEXT@@
 

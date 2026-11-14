@@ -45,7 +45,12 @@
     if (btn) btn.classList.toggle('hidden', !has);
   }
 
-  function openSettingsModal() {
+  async function openSettingsModal() {
+    // Le a configuracao atual: a janela pode ter sido arrastada para um canto desde a ultima leitura.
+    try {
+      const fresh = await window.mpeApi.getConfig();
+      if (fresh && typeof fresh === 'object') currentConfig = fresh;
+    } catch (_) {}
     const cfg = currentConfig || {};
     const setVal = (id, v) => {
       const el = document.getElementById(id);
@@ -508,10 +513,18 @@
       const drawerOpen = sideDrawer && !sideDrawer.classList.contains('hidden');
       const cmdsOpen = sideDrawer && sideDrawer.classList.contains('cmds-open');
       const hasOpenModal = document.querySelectorAll('.modal-backdrop:not(.hidden)').length > 0;
+      // Altura do chat: 546px (626px com comandos), reduzida para a janela caber na tela, inclusive com letras grandes.
+      let drawerH = cmdsOpen ? 626 : 546;
+      const availH = (window.screen && window.screen.availHeight) || 0;
+      if (availH > 0) {
+        const maxDrawer = Math.floor((availH - 8 - cardH - 16) / zoom) - 14;
+        drawerH = Math.max(220, Math.min(drawerH, maxDrawer));
+      }
+      document.documentElement.style.setProperty('--side-drawer-h', `${drawerH}px`);
       const width = hasOpenModal ? Math.round(820 * zoom) : cardW + 16;
       const height = hasOpenModal
         ? Math.round(660 * zoom)
-        : cardH + 16 + (drawerOpen ? Math.round((cmdsOpen ? 640 : 560) * zoom) : 0);
+        : cardH + 16 + (drawerOpen ? Math.round((drawerH + 14) * zoom) : 0);
       window.mpeApi.miniResize({ width, height });
     }
     syncMiniWindowSizeRef = syncMiniWindowSize;
@@ -603,6 +616,8 @@
           : await runObsidian();
 
         if (res && res.ok) {
+          // O titulo vale so para esta anotacao; a proxima nao pode reaproveitar um titulo escondido.
+          document.getElementById('mini-note-title').value = '';
           showToast(`Guardado em ${res.folder}: ${res.fileName}`);
           if (katarosMascot && katarosMascot.flashSub) katarosMascot.flashSub('GUARDADO', 3000);
         } else {

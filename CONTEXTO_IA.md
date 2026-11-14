@@ -19,7 +19,8 @@ Cada mensagem tem um destino, escolhido pelos tres botoes da tela ou por um codi
 - `@nota` (ou `@guardar`): NAO vai para a I.A. Grava o texto como anotacao no Obsidian (`Katharos_Notas`).
 - Sem codigo, vale o botao escolhido ou a acao padrao definida em Ajustes > Basico.
 - Comandos de busca e consulta (`/rapido`, `/buscar`, `/arquivos`, `/extrato`, `/saldo`, `/recibo`, `/obsidian`, `/memoria`, `/status`, `/historico`) nao passam pela I.A.
-- `/historico [termo]`: lista os ultimos dias de conversa ou busca no historico local, gravado em `./arquivos/Historico/AAAA-MM-DD.md`.
+- `/historico [termo]`: lista os ultimos dias de conversa ou busca no historico local, gravado em `./codigo/data/Historico/AAAA-MM-DD.md` (fora de `./arquivos`, para nao misturar conversas antigas com documentos na busca).
+- Um codigo antes de um comando vale mais que o comando: `@nota /qualquer coisa` guarda o texto literal e `@local /resumir x` busca "x" nos arquivos; nenhum dos dois chama a I.A.
 
 ---
 

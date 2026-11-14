@@ -1095,14 +1095,14 @@ body.mode-mini-assistant .side-chat-drawer {
   right: 8px;
   width: auto;
   max-width: none;
-  height: 460px;
+  height: var(--side-drawer-h, 546px);
   border: 1.5px solid rgba(229, 184, 75, 0.45);
   border-radius: 8px;
   animation: fadeIn 0.18s ease forwards;
 }
 
 body.mode-mini-assistant .side-chat-drawer.cmds-open {
-  height: 540px;
+  height: var(--side-drawer-h, 626px);
 }
 
 #mini-drag-handle,
