@@ -327,12 +327,13 @@ function createWindow() {
             return {
               overlayVisible: Boolean(overlay && !overlay.classList.contains('hidden')),
               hasCanvas: Boolean(canvas && canvas.width > 0 && canvas.height > 0),
-              outputLen: (document.getElementById('mini-review-text')?.textContent || '').trim().length
+              outputLen: (document.getElementById('mini-review-text')?.textContent || '').trim().length,
+              miniRouteBtns: document.querySelectorAll('.mini-route-btns .mini-route-btn').length
             };
           })()
         `);
         console.log('KATHAROS_MINI_TEST:', JSON.stringify(miniCheck));
-        if (!miniCheck.overlayVisible || !miniCheck.hasCanvas || miniCheck.outputLen === 0) {
+        if (!miniCheck.overlayVisible || !miniCheck.hasCanvas || miniCheck.outputLen === 0 || miniCheck.miniRouteBtns !== 3) {
           throw new Error('Mini assistant check failed: ' + JSON.stringify(miniCheck));
         }
         const imgMini = await mainWindow.webContents.capturePage();

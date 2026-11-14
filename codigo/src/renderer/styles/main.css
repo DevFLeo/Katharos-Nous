@@ -3516,3 +3516,43 @@ body.theme-light .side-cmd-chip.ui-action {
 body.large-text {
   zoom: 1.25;
 }
+
+/* Mini assistente: tres acoes grandes + "Mais opcoes" */
+.mini-route-btns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.route-btn.mini-route-btn {
+  background: var(--route-color);
+  color: var(--route-ink);
+  border-color: var(--route-color);
+}
+
+.route-btn.mini-route-btn:hover {
+  filter: brightness(1.08);
+  background: var(--route-color);
+}
+
+.mini-more > summary {
+  list-style: none;
+  display: inline-block;
+  margin-top: 6px;
+}
+
+.mini-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.mini-more-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.mini-node-sub {
+  font-size: 8px;
+  font-weight: 700;
+}

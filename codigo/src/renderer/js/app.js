@@ -8,6 +8,8 @@
   let currentConfig = null;
   let syncMiniWindowSizeRef = () => {};
   let setRouteRef = () => {};
+  let sendSideChatMessageRef = async () => {};
+  let refreshMascotIdleRef = async () => {};
 
   function applyUiPrefs(cfg) {
     const ui = (cfg && cfg.ui) || {};
@@ -479,9 +481,7 @@
 
       function updateSendTargetUI() {
         const target = sendTargetSelect ? sendTargetSelect.value : 'obsidian';
-        if (metaFields) {
-          metaFields.classList.toggle('hidden', target !== 'obsidian' && target !== 'ai_local');
-        }
+        if (metaFields) metaFields.dataset.target = target;
         syncMiniWindowSize();
       }
       if (sendTargetSelect) {
@@ -547,6 +547,60 @@
         });
       }
 
+      async function saveMiniTextToObsidian(text) {
+        const title = document.getElementById('mini-note-title').value.trim();
+        const folder = document.getElementById('mini-note-folder').value.trim();
+        const tagsRaw = document.getElementById('mini-note-tags').value.trim();
+        const tags = tagsRaw ? tagsRaw.split(/[, ]+/).filter(Boolean) : [];
+
+        const runObsidian = () => window.mpeApi.saveToObsidian({ title, text, folder, tags });
+        const res = katarosMascot
+          ? await katarosMascot.runWithProcessing(runObsidian, { minDurationMs: 1600, subText: 'GUARDANDO' })
+          : await runObsidian();
+
+        if (res && res.ok) {
+          showToast(`Guardado em ${res.folder}: ${res.fileName}`);
+          if (katarosMascot && katarosMascot.flashSub) katarosMascot.flashSub('GUARDADO', 3000);
+        } else {
+          showToast(`Não consegui guardar: ${(res && res.error) || 'pasta de anotações inacessível'}`);
+        }
+        return res;
+      }
+
+      function currentMiniText() {
+        return lastReviewedText && textarea.value === lastReviewSourceText ? lastReviewedText : textarea.value;
+      }
+
+      let miniRouteBusy = false;
+      document.querySelectorAll('.mini-route-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          if (miniRouteBusy) return;
+          const route = btn.dataset.route;
+          const text = String(currentMiniText() || '').trim();
+          if (!text) {
+            const what = route === 'local' ? 'encontrar' : route === 'nota' ? 'guardar' : 'perguntar';
+            showToast(`Escreva o que quer ${what}.`);
+            textarea.focus();
+            return;
+          }
+          miniRouteBusy = true;
+          try {
+            if (route === 'nota') {
+              await saveMiniTextToObsidian(text);
+              return;
+            }
+            sideDrawer.classList.remove('hidden');
+            const chatInput = document.getElementById('side-chat-input');
+            chatInput.value = text;
+            setRouteRef(route);
+            syncMiniWindowSize();
+            await sendSideChatMessageRef();
+          } finally {
+            miniRouteBusy = false;
+          }
+        });
+      });
+
       const sendBtn = document.getElementById('btn-mini-send');
       let sendingBusy = false;
       sendBtn.addEventListener('click', async () => {
@@ -573,21 +627,7 @@
 
         try {
           if (destination === 'obsidian') {
-            const title = document.getElementById('mini-note-title').value.trim();
-            const folder = document.getElementById('mini-note-folder').value.trim();
-            const tagsRaw = document.getElementById('mini-note-tags').value.trim();
-            const tags = tagsRaw ? tagsRaw.split(/[, ]+/).filter(Boolean) : [];
-
-            const runObsidian = () => window.mpeApi.saveToObsidian({ title, text, folder, tags });
-            const res = katarosMascot
-              ? await katarosMascot.runWithProcessing(runObsidian, { minDurationMs: 1600, subText: 'OBSIDIAN' })
-              : await runObsidian();
-
-            if (res && res.ok) {
-              showToast(`Nota salva no Obsidian: ${res.fileName} em [${res.folder}]!`);
-            } else {
-              showToast(`Erro ao salvar no Obsidian: ${(res && res.error) || 'Cofre inacessivel'}`);
-            }
+            await saveMiniTextToObsidian(text);
           } else if (destination === 'notepad') {
             if (katarosMascot) {
               await katarosMascot.runWithProcessing(async () => {}, {
@@ -850,7 +890,7 @@
         const fromText = sideInputEl ? detectRouteFromText(sideInputEl.value) : null;
         const route = fromText || currentRoute;
         const info = ROUTE_UI[route];
-        document.querySelectorAll('.route-btn').forEach((btn) => {
+        document.querySelectorAll('.route-bar .route-btn').forEach((btn) => {
           btn.setAttribute('aria-pressed', btn.dataset.route === route ? 'true' : 'false');
         });
         const statusBox = document.getElementById('route-status');
@@ -878,7 +918,7 @@
       }
       setRouteRef = setRoute;
 
-      document.querySelectorAll('.route-btn').forEach((btn) => {
+      document.querySelectorAll('.route-bar .route-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
           if (sideInputEl) {
             sideInputEl.value = sideInputEl.value.replace(ROUTE_CODE_RE, '').replace(/^\s+/, '');
@@ -1220,10 +1260,24 @@
         offline: 'Motor desligado',
         error: 'Erro no motor'
       };
+      function mascotIdleFromStatus(s) {
+        if (!katarosMascot || !katarosMascot.setIdleText || !s) return;
+        if (s.error || s.engine === 'error' || s.modelFound === false) katarosMascot.setIdleText('MODELO PARADO');
+        else if (s.engine === 'starting') katarosMascot.setIdleText('CARREGANDO');
+        else katarosMascot.setIdleText('PRONTO');
+      }
+      refreshMascotIdleRef = async () => {
+        if (!window.mpeApi.aiStatus) return;
+        try {
+          mascotIdleFromStatus(await window.mpeApi.aiStatus({ warmUp: false }));
+        } catch (_) {}
+      };
+
       async function refreshAiStatus(warmUp) {
         if (!statusEl || !window.mpeApi.aiStatus) return;
         try {
           const s = await window.mpeApi.aiStatus({ warmUp });
+          mascotIdleFromStatus(s);
           let label = STATUS_LABEL[s.engine] || s.engine;
           if (s.provider !== 'auto' && s.provider !== 'llamafile') label = `${s.provider} (${s.engine})`;
           if (!s.modelFound && !s.ready && s.engine === 'offline') label = 'Sem modelo em models/ - envie /status';
@@ -1249,6 +1303,7 @@
       });
       drawerObserver.observe(sideDrawer, { attributes: true, attributeFilter: ['class'] });
 
+      sendSideChatMessageRef = () => sendSideChatMessage();
       async function sendSideChatMessage() {
         const input = document.getElementById('side-chat-input');
         const prompt = input.value.trim();
@@ -1505,6 +1560,7 @@
           katarosMascot.setProcessing(false);
           katarosMascot.resume();
         }
+        refreshMascotIdleRef();
         if (payload && payload.openSettings) {
           openSettingsModal();
         }

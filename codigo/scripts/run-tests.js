@@ -689,6 +689,15 @@ async function main() {
     assert.ok(html.includes('id="route-status"') && html.includes('id="btn-side-chat-tune"'), 'route-status ou btn-side-chat-tune ausente');
     assert.ok(/aiChat\(\{[^}]*route/.test(appJs), 'aiChat deve receber route');
   });
+  await runCase('Rotas', 'R10', 'Mini assistente com 3 acoes e estados do mascote', () => {
+    const html = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'index.html'), 'utf8');
+    const mascotJs = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'js', 'kataros3d.js'), 'utf8');
+    for (const id of ['btn-mini-route-ia', 'btn-mini-route-local', 'btn-mini-route-nota']) {
+      assert.ok(html.includes(`id="${id}"`), `${id} ausente`);
+    }
+    assert.ok(html.indexOf('class="mini-more"') < html.indexOf('id="btn-mini-send"'), 'Enviar deve ficar dentro de Mais opcoes');
+    assert.ok(mascotJs.includes('setIdleText') && mascotJs.includes('flashSub') && !mascotJs.includes("'LOCAL OK'"), 'Estados do mascote ausentes');
+  });
   //@@ROTAS_NEXT@@
 
   const passed = results.filter((r) => r.status === 'PASS').length;

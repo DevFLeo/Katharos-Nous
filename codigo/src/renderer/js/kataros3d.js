@@ -84,8 +84,27 @@ class KatarosMascot3D {
       this.statusEl.textContent = this.isProcessing ? 'PROCESSANDO' : 'KATHAROS AI';
     }
     if (this.subEl) {
-      this.subEl.textContent = this.isProcessing ? (subText || 'AGUARDE') : 'LOCAL OK';
+      this.subEl.textContent = this.isProcessing ? (subText || 'AGUARDE') : (this.idleText || 'PRONTO');
     }
+  }
+
+  /** Texto exibido sob o mascote quando nao esta processando (PRONTO, CARREGANDO, MODELO PARADO). */
+  setIdleText(text) {
+    this.idleText = text || 'PRONTO';
+    if (this.subEl && !this.isProcessing && !this.flashTimer) {
+      this.subEl.textContent = this.idleText;
+    }
+  }
+
+  /** Mostra um estado temporario (ex.: GUARDADO) e volta ao texto ocioso. */
+  flashSub(text, ms = 3000) {
+    if (!this.subEl) return;
+    if (this.flashTimer) clearTimeout(this.flashTimer);
+    this.subEl.textContent = text;
+    this.flashTimer = setTimeout(() => {
+      this.flashTimer = null;
+      if (this.subEl && !this.isProcessing) this.subEl.textContent = this.idleText || 'PRONTO';
+    }, ms);
   }
 
   /**
