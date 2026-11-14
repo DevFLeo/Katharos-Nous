@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self';" />
+  <title>Katharos Nous | katharos AI</title>
+  <link rel="stylesheet" href="styles/main.css" />
+</head>
+<body class="mode-mini-assistant">
+  <!-- 1. NOTIFICACAO FLUTUANTE (TOAST) -->
+  <div id="hud-toast" class="hud-toast hidden">
+    <span class="toast-star">[KATHAROS]</span>
+    <span id="hud-toast-text">Ação concluída!</span>
+  </div>
+
+  <!-- 2. MINI ASSISTENTE FLUTUANTE KATHAROS NOUS (LOWER THIRDS SCI-FI) -->
+  <div id="mini-assistant-overlay" class="mini-assistant-overlay">
+    <div class="mini-sci-hud" id="mini-sci-hud-card">
+      <!-- Mascote 3D Holografico Esquerdo (Giroscopio Dourado/Ambar) -->
+      <div class="mini-node-ring" id="kataros-mascot-node" title="Arraste para mover">
+        <canvas id="kataros-mascot-canvas" class="kataros-mascot-canvas"></canvas>
+        <div class="kataros-label-box">
+          <div id="kataros-node-status" class="mini-node-status">KATHAROS AI</div>
+          <div id="kataros-node-sub" class="mini-node-sub">LOCAL OK</div>
+        </div>
+      </div>
+
+      <!-- Capsula Sci-Fi Ciano/Azul -->
+      <div class="mini-capsule-card">
+        <div class="mini-capsule-header" id="mini-drag-handle" title="Arraste para mover">
+          <div class="mini-header-title">
+            <span class="mini-tag">KATHAROS NOUS</span>
+            <span class="mini-title-text">KATHAROS AI // REVISÃO &amp; ENVIO</span>
+          </div>
+          <div class="mini-header-controls">
+            <button id="btn-mini-guide" class="mini-btn-icon" title="Desempenho /boost e Kits">/BOOST</button>
+            <button id="btn-mini-settings" class="mini-btn-icon" title="Configurações">AJUSTES</button>
+            <button id="btn-mini-chat-toggle" class="mini-btn-icon" title="Abrir Chat Lateral">CHAT</button>
+            <button id="btn-mini-close" class="mini-btn-icon close" title="Ocultar (ESC)">X</button>
+          </div>
+        </div>
+
+        <div class="mini-capsule-body">
+          <div class="mini-input-row">
+            <textarea id="mini-ai-textarea" class="mini-textarea" rows="2" placeholder="Cole (Ctrl+V) ou escreva um texto..."></textarea>
+          </div>
+
+          <div class="mini-controls-bar">
+            <div class="mini-meta-fields" id="mini-meta-fields">
+              <input type="text" id="mini-note-title" class="mini-field-small" placeholder="Título" />
+              <input type="text" id="mini-note-folder" class="mini-field-small" placeholder="Pasta" />
+              <input type="text" id="mini-note-tags" class="mini-field-small" placeholder="#tags" />
+            </div>
+            <div class="mini-action-row">
+              <div class="mini-action-btns">
+                <button id="btn-mini-paste" class="mini-btn" title="Colar texto da área de transferência">Colar</button>
+                <button id="btn-mini-review" class="mini-btn primary" title="Revisar gramática e estilo">Revisar</button>
+                <button id="btn-mini-copy" class="mini-btn" title="Copiar texto">Copiar</button>
+                <button id="btn-mini-save-file" class="mini-btn" title="Salvar arquivo ou documento na I.A local">Salvar Arquivo</button>
+              </div>
+              <div class="mini-send-group">
+                <label class="mini-send-label" for="mini-send-target">Enviar:</label>
+                <select id="mini-send-target" class="mini-select" title="Onde enviar">
+                  <option value="obsidian">Obsidian</option>
+                  <option value="ai_local">I.A Local (Arquivo)</option>
+                  <option value="notepad">Bloco de Notas</option>
+                  <option value="telegram">Telegram</option>
+                </select>
+                <button id="btn-mini-send" class="mini-btn gold" title="Enviar texto para o destino escolhido">Enviar</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="mini-review-preview" class="mini-review-preview hidden">
+            <div class="mini-review-header">
+              <span id="mini-review-summary">Revisão Concluída</span>
+              <button id="btn-mini-apply-review" class="mini-pill-btn">Substituir com Revisão</button>
+            </div>
+            <div id="mini-review-text" class="mini-review-content"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. CHAT LATERAL COM I.A LOCAL (DRAWER DESLIZANTE) -->
+  <div id="side-chat-drawer" class="side-chat-drawer hidden">
+    <div class="side-chat-header">
+      <div class="side-chat-title-group">
+        <div class="side-chat-tag">KATHAROS NOUS // OFFLINE</div>
+        <div class="side-chat-title">CHAT // KATHAROS AI</div>
+        <div id="side-ai-status" class="side-ai-status offline">Verificando motor...</div>
+      </div>
+      <div class="side-chat-header-actions">
+        <button type="button" id="btn-side-chat-textsize" class="side-header-tool-btn" aria-pressed="false" title="Alternar tamanho do texto">A+</button>
+        <button type="button" id="btn-side-chat-wide" class="side-header-tool-btn" aria-pressed="false" title="Expandir largura do chat">Expandir</button>
+        <button type="button" id="btn-close-side-chat" class="side-chat-close-btn" title="Recolher Chat Lateral">&times;</button>
+      </div>
+    </div>
+
+    <div class="side-chat-params">
+      <div class="side-param-item">
+        <label for="side-ai-mode">Modo</label>
+        <select id="side-ai-mode" class="side-select">
+          <option value="free">Conversa</option>
+          <option value="review">Revisar Texto</option>
+          <option value="code">Programação</option>
+          <option value="draft">Redigir Texto</option>
+          <option value="obsidian">Organizar Nota</option>
+        </select>
+      </div>
+      <div class="side-param-item">
+        <label for="side-ai-tone">Tom</label>
+        <select id="side-ai-tone" class="side-select">
+          <option value="amigavel">Amigável</option>
+          <option value="neutra">Neutra</option>
+          <option value="profissional">Profissional</option>
+          <option value="conciso">Conciso</option>
+          <option value="didatico">Didático</option>
+        </select>
+      </div>
+      <div class="side-param-item">
+        <label for="side-ai-preset">Perfil</label>
+        <select id="side-ai-preset" class="side-select" title="Parâmetros de geração">
+          <option value="equilibrado">Equilibrado</option>
+          <option value="preciso">Preciso</option>
+          <option value="direto">Direto</option>
+          <option value="criativo">Criativo</option>
+          <option value="detalhado">Detalhado</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="side-chat-messages-wrap">
+      <div id="side-chat-messages" class="side-chat-messages">
+        <div class="side-msg assistant">
+          <div class="side-msg-header">
+            <span class="side-msg-author">KATHAROS AI</span>
+            <span class="side-msg-time">Agora</span>
+            <button type="button" class="side-msg-copy-btn" title="Copiar resposta">Copiar</button>
+          </div>
+          <div class="side-msg-content">Katharos Nous | katharos AI pronta para conversar, revisar textos, consultar extratos e salvar notas no Obsidian. Use Comandos / ou envie /ajuda.</div>
+        </div>
+      </div>
+      <button type="button" id="btn-side-scroll-bottom" class="side-scroll-bottom-btn hidden" title="Ir para a mensagem mais recente">Descer</button>
+    </div>
+
+    <div class="side-chat-input-bar">
+      <div id="side-cmds-panel" class="side-cmds-panel hidden">
+        <div class="side-cmds-head">
+          <div class="side-cmd-cats" role="tablist" aria-label="Categorias de comandos">
+            <button type="button" class="side-cmd-cat active" data-cat="all">Todos</button>
+            <button type="button" class="side-cmd-cat" data-cat="texto">Texto</button>
+            <button type="button" class="side-cmd-cat" data-cat="docs">Notas/Docs</button>
+            <button type="button" class="side-cmd-cat" data-cat="estilo">Estilo</button>
+            <button type="button" class="side-cmd-cat" data-cat="sistema">Sistema</button>
+            <button type="button" class="side-cmd-cat" data-cat="ui">UI</button>
+          </div>
+          <button type="button" id="btn-hide-side-cmds" class="side-cmds-hide-btn" title="Ocultar painel de comandos">Ocultar</button>
+        </div>
+        <div class="side-cmds-search-row">
+          <input type="text" id="side-cmds-filter" class="side-cmds-filter" placeholder="Filtrar comando ou ação..." autocomplete="off" />
+          <span id="side-cmds-count" class="side-cmds-count">0</span>
+        </div>
+        <div id="side-quick-cmds" class="side-quick-cmds"></div>
+      </div>
+
+      <div class="side-cmds-toolbar">
+        <button type="button" id="btn-toggle-side-cmds" class="side-cmds-toggle-btn" aria-expanded="false" title="Mostrar ou ocultar comandos (Ctrl+/)">
+          <span class="side-cmds-slash">/</span>
+          <span>Comandos</span>
+        </button>
+        <span class="side-input-hint">Enter envia | Seta Cima: histórico | Ctrl+/ comandos</span>
+      </div>
+
+      <textarea id="side-chat-input" class="side-chat-textarea" rows="2" placeholder="Digite sua mensagem ou ative Comandos / ..."></textarea>
+      <div class="side-chat-footer-actions">
+        <button id="btn-side-chat-clear" class="side-action-btn subtle">Limpar</button>
+        <button id="btn-side-chat-save-file" class="side-action-btn" title="Importar ou salvar arquivo na I.A Local">Salvar Arquivo</button>
+        <button id="btn-side-chat-to-obsidian" class="side-action-btn gold" title="Salvar resposta atual no Obsidian">Salvar no Obsidian</button>
+        <button id="btn-side-chat-send" class="side-action-btn primary">Enviar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. MODAL SALVAR ARQUIVO NA I.A LOCAL -->
+  <div id="modal-save-ai-file" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>Salvar arquivo na I.A local?</h2>
+        <p>Organiza em ./arquivos/&lt;Categoria&gt;/ e libera consultas de extratos, saldos e recibos na Katharos Nous | katharos AI.</p>
+      </div>
+      <div class="modal-body">
+        <label class="field-label">Título / Nome do Arquivo</label>
+        <input type="text" id="ai-doc-title" class="field-input" placeholder="Ex: Extrato_Nubank_Nov2026" maxlength="80" />
+
+        <label class="field-label">Categoria do Documento</label>
+        <select id="ai-doc-category" class="field-input">
+          <option value="Auto">Auto (Detectar pelo conteúdo)</option>
+          <option value="Extratos">Extratos</option>
+          <option value="Recibos">Recibos</option>
+          <option value="Comprovantes">Comprovantes</option>
+          <option value="Financeiro">Financeiro</option>
+          <option value="Contratos">Contratos</option>
+          <option value="Geral">Geral</option>
+        </select>
+
+        <label class="field-label">Importar Arquivo do Computador (Opcional: .OFX, .CSV, .TXT, .MD, .PDF)</label>
+        <div class="input-with-btn">
+          <input type="text" id="ai-doc-filepath" class="field-input" placeholder="Nenhum arquivo selecionado (ou use o texto abaixo)" readonly />
+          <button type="button" id="btn-ai-doc-pick-file" class="hud-btn small">Arquivo...</button>
+          <button type="button" id="btn-ai-doc-clear-file" class="hud-btn subtle small">Limpar</button>
+        </div>
+
+        <label class="field-label">Conteúdo / Extrato / Recibo</label>
+        <textarea id="ai-doc-content" class="field-textarea" rows="4" placeholder="Cole aqui o extrato, recibo ou notas..."></textarea>
+      </div>
+      <div class="modal-footer between">
+        <button id="btn-cancel-ai-doc" class="hud-btn subtle">Cancelar</button>
+        <button id="btn-confirm-ai-doc" class="hud-btn primary">Salvar na I.A Local</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. MODAL DE CONFIGURACOES (KATHAROS NOUS) -->
+  <div id="modal-settings" class="modal-backdrop hidden">
+    <div class="modal-card wide">
+      <div class="modal-header">
+        <h2>Configurações — Katharos Nous | katharos AI</h2>
+        <p>Inicialização com o Windows, motor de IA offline, Obsidian Vault e integrações de envio.</p>
+      </div>
+      <div class="modal-body grid-2">
+        <div>
+          <h3 class="section-subtitle">Geral &amp; Windows</h3>
+          <label class="field-label">Nome de Usuário</label>
+          <input type="text" id="cfg-user-name" class="field-input" placeholder="Seu nome" />
+
+          <label class="field-label">Tom de Linguagem</label>
+          <select id="cfg-language-tone" class="field-input">
+            <option value="amigavel">Amigável</option>
+            <option value="neutra">Neutra</option>
+            <option value="profissional">Profissional</option>
+            <option value="conciso">Conciso</option>
+            <option value="didatico">Didático</option>
+          </select>
+
+          <label class="checkbox-row">
+            <input type="checkbox" id="cfg-start-windows" checked />
+            <span><strong>Iniciar com o Windows</strong></span>
+          </label>
+
+          <label class="checkbox-row">
+            <input type="checkbox" id="cfg-sound-effects" checked />
+            <span>Efeitos sonoros sutis</span>
+          </label>
+
+          <h3 class="section-subtitle">Telegram (Envio Rápido)</h3>
+          <label class="field-label">Conversa de Destino</label>
+          <input type="text" id="cfg-tg-chat" class="field-input" placeholder="Eu | Você | Leonardo" />
+
+          <label class="field-label">Bot Token (Opcional)</label>
+          <input type="password" id="cfg-tg-token" class="field-input" placeholder="123456789:ABCdef..." />
+
+          <label class="field-label">Chat ID (Opcional)</label>
+          <input type="text" id="cfg-tg-chatid" class="field-input" placeholder="Ex: 987654321" />
+        </div>
+
+        <div>
+          <h3 class="section-subtitle">Obsidian &amp; I.A Local</h3>
+          <label class="field-label">Pasta de Documentos Organizados</label>
+          <div class="input-with-btn">
+            <input type="text" id="cfg-docs-folder" class="field-input" placeholder="./arquivos" />
+            <button type="button" id="btn-cfg-browse-docs" class="hud-btn small">Escolher...</button>
+          </div>
+
+          <label class="field-label">Pasta do Cofre Obsidian (Vault)</label>
+          <div class="input-with-btn">
+            <input type="text" id="cfg-obsidian-vault" class="field-input" placeholder="./arquivos/Obsidian_Vault" />
+            <button type="button" id="btn-cfg-browse-obsidian" class="hud-btn small">Escolher...</button>
+          </div>
+
+          <label class="field-label">Pasta Padrão dentro do Vault</label>
+          <input type="text" id="cfg-obsidian-folder" class="field-input" placeholder="Katharos_Notas" />
+
+          <label class="field-label">Motor de I.A</label>
+          <select id="cfg-ai-provider" class="field-input">
+            <option value="auto">Auto (Mozilla llamafile + Katharos Engine)</option>
+            <option value="builtin">Motor Embutido Offline (~2ms)</option>
+            <option value="ollama">Ollama Local (127.0.0.1:11434)</option>
+            <option value="lmstudio">LM Studio Local (127.0.0.1:1234)</option>
+          </select>
+
+          <label class="field-label">Perfil de Desempenho (/boost)</label>
+          <select id="cfg-ai-boost" class="field-input">
+            <option value="balanced">Balanceado (4096 ctx, KV Q8_0)</option>
+            <option value="turbo">Turbo /boost (Prioridade Alta + Max Threads)</option>
+            <option value="eco">Eco (2048 ctx, Menor Uso de RAM)</option>
+          </select>
+
+          <div class="machine-info-box" style="margin-top:14px;">
+            <div><strong>Máquina:</strong> <span id="info-machine-name">-</span></div>
+            <div><strong>Config:</strong> <code>./codigo/mpe.config.json</code></div>
+            <div id="info-perf-summary" style="margin-top:6px; color: #73F3FF;">Calculando memória e velocidade...</div>
+            <button type="button" id="btn-cfg-open-guide" class="hud-btn small" style="margin-top:8px;">Ver Memória, Velocidade e Kits (/boost)</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer end">
+        <button id="btn-cancel-settings" class="hud-btn subtle">Fechar</button>
+        <button id="btn-save-settings" class="hud-btn primary">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. MODAL GUIA RAPIDO, /BOOST E KITS MINIMOS -->
+  <div id="modal-guide" class="modal-backdrop hidden">
+    <div class="modal-card wide">
+      <div class="modal-header">
+        <h2>Atalhos, /boost &amp; Kits Mínimos — Katharos Nous</h2>
+        <p>Referência direta de uso, cálculo de memória RAM, velocidade e hardware recomendado.</p>
+      </div>
+      <div class="modal-body">
+        <div class="guide-grid">
+          <div class="guide-box">
+            <h3>Atalhos Globais (Qualquer Tela)</h3>
+            <ul class="guide-list">
+              <li><kbd>Shift + Ctrl + Botão Dir.</kbd> <span>Abre Katharos Nous (Revisar / Chat / Obsidian)</span></li>
+              <li><kbd>Ctrl + Shift + J</kbd> <span>Atalho alternativo do teclado para abrir/focar</span></li>
+              <li><kbd>Ctrl + /</kbd> <span>Exibe ou oculta o painel de comandos no chat</span></li>
+              <li><kbd>ESC</kbd> <span>Fecha modal atual ou minimiza p/ bandeja</span></li>
+            </ul>
+            <p class="machine-hint" style="margin-top:8px;">
+              Barra de Tarefas: fixe pelo atalho <strong>Katharos Nous - katharos AI</strong> ou diretamente pela janela aberta por <code>Katharos.exe</code>.
+            </p>
+          </div>
+
+          <div class="guide-box">
+            <div class="guide-boost-head">
+              <h3>Desempenho &amp; Memória (/boost)</h3>
+              <div class="boost-pills">
+                <button type="button" class="boost-pill" data-boost="eco">Eco</button>
+                <button type="button" class="boost-pill" data-boost="balanced">Balanceado</button>
+                <button type="button" class="boost-pill" data-boost="turbo">Turbo /boost</button>
+              </div>
+            </div>
+            <div id="guide-perf-metrics" class="guide-perf-metrics">Carregando cálculo de hardware...</div>
+          </div>
+        </div>
+
+        <h3 class="section-subtitle" style="margin-top:16px;">Kits Mínimos e Estimativa de Velocidade</h3>
+        <div id="guide-kits-grid" class="guide-kits-grid"></div>
+      </div>
+      <div class="modal-footer between">
+        <div class="footer-right">
+          <button type="button" id="btn-guide-repair-shortcut" class="hud-btn small">Atualizar Atalho Windows</button>
+          <button type="button" id="btn-guide-open-chat" class="hud-btn small">Abrir Chat Katharos AI</button>
+        </div>
+        <button type="button" id="btn-close-guide" class="hud-btn primary">Entendi</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/i18n-tones.js"></script>
+  <script src="js/kataros3d.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

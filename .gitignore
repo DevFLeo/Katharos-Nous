@@ -1,0 +1,10 @@
+codigo/node_modules/
+codigo/logs/
+logs/
+codigo/data/
+codigo/models/*.llamafile*
+codigo/models/*.gguf
+codigo/models/*.exe
+prints/
+arquivos/
+*.log

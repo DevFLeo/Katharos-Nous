@@ -1,0 +1,76 @@
+{
+  "profile": {
+    "id": "default-katharos-profile",
+    "name": "Perfil Principal Katharos Nous",
+    "userName": "",
+    "isRegistered": true,
+    "languageTone": "neutra",
+    "lastUpdated": "2026-11-14T17:58:30.135Z"
+  },
+  "theme": {
+    "preset": "katharos-scifi",
+    "uiFontScale": 1,
+    "palette": {
+      "obsidian": "#080D16",
+      "darkGold": "#0A101A",
+      "gold": "#56B6ED",
+      "brightGold": "#73F3FF",
+      "starlight": "#FFD584",
+      "nebulaBlue": "#56B6ED",
+      "crimsonAlert": "#FF6B7A"
+    }
+  },
+  "system": {
+    "startWithWindows": true,
+    "startMinimizedToTray": true,
+    "triggerShortcut": "Shift + Ctrl + Botão Direito",
+    "fallbackKeyboardShortcut": "CommandOrControl+Shift+J",
+    "fallbackKeyboardShortcutAlt": "CommandOrControl+Alt+K",
+    "showNotifications": true,
+    "soundEffects": true
+  },
+  "telegram": {
+    "deliveryMode": "desktop_and_bot",
+    "preferDesktopApp": true,
+    "desktopExecutablePath": "",
+    "windowTitleHint": "Telegram",
+    "savedChatPath": "Eu | Você | Leonardo",
+    "autoSendAfterPaste": true,
+    "botToken": "",
+    "defaultChatId": "",
+    "chatId": ""
+  },
+  "captures": {
+    "documentsFolder": "./arquivos"
+  },
+  "obsidian": {
+    "vaultPath": "./arquivos/Obsidian_Vault",
+    "defaultFolder": "Katharos_Notas",
+    "defaultSubfolder": "Katharos_Notas",
+    "openInObsidianAfterSave": false
+  },
+  "ai": {
+    "provider": "auto",
+    "endpoint": "http://127.0.0.1:18080/v1/chat/completions",
+    "model": "qwen2.5-7b-instruct",
+    "port": 18080,
+    "modelsDir": "./codigo/models",
+    "contextSize": 4096,
+    "gpuLayers": "auto",
+    "boostMode": "balanced",
+    "apiKey": "",
+    "timeoutMs": 30000,
+    "useObsidianContext": true,
+    "maxContextNotes": 4
+  },
+  "machines": {
+    "DESKTOP-LTO8K3P": {
+      "hostname": "DESKTOP-LTO8K3P",
+      "platform": "win32",
+      "arch": "x64",
+      "startWithWindows": true,
+      "themePreset": "katharos-scifi",
+      "lastActive": "2026-11-14T17:58:30.135Z"
+    }
+  }
+}
