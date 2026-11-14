@@ -627,6 +627,36 @@ async function main() {
       assert.ok(r3.text.includes('disco cheio'), r3.text);
     } finally { rmSafe(tmpRoot); }
   });
+  await runCase('Rotas', 'C9', 'chave ui com padroes em config antigo', () => {
+    const tmpRoot = makeTempDir('katharos-ui-');
+    const tmpCode = path.join(tmpRoot, 'codigo');
+    fs.mkdirSync(tmpCode, { recursive: true });
+    fs.writeFileSync(path.join(tmpCode, 'mpe.config.json'), JSON.stringify({ profile: { userName: 'X' } }), 'utf8');
+    try {
+      const loaded = new ConfigManager(tmpRoot, tmpCode).load();
+      assert.deepStrictEqual(loaded.ui, { defaultRoute: 'ia', largeText: false, miniCorner: null });
+    } finally { rmSafe(tmpRoot); }
+  });
+  await runCase('Rotas', 'C10', 'ui preservada ao salvar e rota invalida corrigida', () => {
+    const tmpRoot = makeTempDir('katharos-ui-');
+    const tmpCode = path.join(tmpRoot, 'codigo');
+    fs.mkdirSync(tmpCode, { recursive: true });
+    try {
+      const mgr = new ConfigManager(tmpRoot, tmpCode);
+      mgr.load();
+      mgr.save({ ui: { defaultRoute: 'nota', largeText: true, miniCorner: { corner: 'tl', displayId: 7 } } });
+      const again = new ConfigManager(tmpRoot, tmpCode).load();
+      assert.strictEqual(again.ui.defaultRoute, 'nota');
+      assert.strictEqual(again.ui.largeText, true);
+      assert.deepStrictEqual(again.ui.miniCorner, { corner: 'tl', displayId: 7 });
+      again.ui.defaultRoute = 'xyz';
+      again.ui.miniCorner = { corner: 'meio' };
+      new ConfigManager(tmpRoot, tmpCode).save(again);
+      const fixed = new ConfigManager(tmpRoot, tmpCode).load();
+      assert.strictEqual(fixed.ui.defaultRoute, 'ia');
+      assert.strictEqual(fixed.ui.miniCorner, null);
+    } finally { rmSafe(tmpRoot); }
+  });
   //@@ROTAS_NEXT@@
 
   const passed = results.filter((r) => r.status === 'PASS').length;

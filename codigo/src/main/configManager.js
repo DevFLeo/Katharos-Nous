@@ -89,6 +89,11 @@ class ConfigManager {
         useObsidianContext: true,
         maxContextNotes: 4
       },
+      ui: {
+        defaultRoute: 'ia',
+        largeText: false,
+        miniCorner: null
+      },
       machines: {}
     };
   }
@@ -192,6 +197,18 @@ class ConfigManager {
     if (!rootData.ai.contextSize) rootData.ai.contextSize = 4096;
     if (!['eco', 'balanced', 'turbo'].includes(rootData.ai.boostMode)) {
       rootData.ai.boostMode = 'balanced';
+    }
+
+    rootData.ui = Object.assign({}, defaults.ui, rootData.ui || {});
+    if (!['ia', 'local', 'nota'].includes(rootData.ui.defaultRoute)) {
+      rootData.ui.defaultRoute = 'ia';
+    }
+    rootData.ui.largeText = Boolean(rootData.ui.largeText);
+    const corner = rootData.ui.miniCorner;
+    if (!corner || typeof corner !== 'object' || !['tl', 'tr', 'bl', 'br'].includes(corner.corner)) {
+      rootData.ui.miniCorner = null;
+    } else {
+      rootData.ui.miniCorner = { corner: corner.corner, displayId: Number.isFinite(corner.displayId) ? corner.displayId : null };
     }
 
     if (!rootData.machines || typeof rootData.machines !== 'object') {
