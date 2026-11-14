@@ -780,6 +780,7 @@
         { id: 'obsidian', label: '/obsidian', cmd: '/obsidian', cat: 'docs', send: true, hint: 'Listar notas recentes do cofre Obsidian' },
         { id: 'obsidian-fin-ex', label: 'Obsidian: Finanças', cmd: '/obsidian financeiro', cat: 'docs', send: true, hint: 'Exemplo de busca na nota financeira do Obsidian' },
         { id: 'arquivos', label: '/arquivos', cmd: '/arquivos', cat: 'docs', send: true, hint: 'Listar documentos salvos na I.A Local' },
+        { id: 'historico', label: '/historico', cmd: '/historico ', cat: 'docs', send: false, hint: 'Ver dias de conversa ou buscar no historico local' },
         { id: 'arquivos-ex', label: 'Arquivos: Fatura', cmd: '/arquivos fatura', cat: 'docs', send: true, hint: 'Exemplo de busca por termo nos arquivos locais' },
         { id: 'extrato', label: '/extrato', cmd: '/extrato ', cat: 'docs', send: false, hint: 'Consultar extratos e movimentacoes' },
         { id: 'extrato-ex', label: 'Extrato Exemplo', cmd: '/extrato', cat: 'docs', send: true, hint: 'Consultar extratos financeiros de exemplo (CSV e OFX)' },
@@ -899,6 +900,13 @@
       const sentPromptHistory = [];
       let historyCursor = -1;
       let historyDraft = '';
+      if (window.mpeApi.recentPrompts) {
+        window.mpeApi.recentPrompts().then((list) => {
+          if (Array.isArray(list) && list.length && sentPromptHistory.length === 0) {
+            sentPromptHistory.push(...list.slice(-40));
+          }
+        }).catch(() => {});
+      }
 
       // Rotas: Perguntar (ia) / Procurar (local) / Guardar (nota)
       const ROUTE_UI = {

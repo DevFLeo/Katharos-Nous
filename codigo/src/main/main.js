@@ -635,6 +635,14 @@ function setupIpcHandlers() {
     );
   });
 
+  ipcMain.handle('mpe:ai-recent-prompts', async () => {
+    try {
+      return localAiService.history.recentPrompts(40);
+    } catch (_) {
+      return [];
+    }
+  });
+
   ipcMain.handle('mpe:ai-status', async (_event, { warmUp } = {}) => {
     if (warmUp) localAiService.warmUp();
     return await localAiService.getStatus();

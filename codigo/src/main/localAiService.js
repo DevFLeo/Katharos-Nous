@@ -10,6 +10,7 @@ const ObsidianIndex = require('./obsidianIndex');
 const LlamafileManager = require('./llamafileManager');
 const AiDocuments = require('./aiDocuments');
 const { resolveRoute, normalizeRoute } = require('./routeResolver');
+const ChatHistoryStore = require('./chatHistoryStore');
 
 /**
  * Servico de I.A Local, Contexto Raiz e Integracao com Obsidian (Katharos Nous | katharos AI)
@@ -45,6 +46,7 @@ const HELP_TEXT = [
   '/saldo [termo]          Exibe saldos detectados nos arquivos',
   '/recibo [termo]         Busca recibos e comprovantes',
   '/arquivos [termo]       Lista ou busca arquivos salvos na I.A Local',
+  '/historico [termo]      Lista os ultimos dias de conversa ou busca no historico local',
   '/obsidian [termo]       Lista notas ou busca no cofre do Obsidian',
   '/salvar [titulo]        Salva a ultima resposta no Obsidian',
   '/salvar-arquivo [nome]  Salva a ultima resposta nos documentos da I.A',
@@ -91,6 +93,7 @@ const COMMAND_SPECS = [
   { name: 'redigir', aliases: ['redija', 'escrever', 'escreva', 'draft', 'texto', 'email', 'receita'] },
   { name: 'organizar', aliases: ['organiza', 'organizador', 'classificar'] },
   { name: 'rapido', aliases: ['fast', 'acha', 'achar', 'localizar', 'doc', 'docs-rapido'] },
+  { name: 'historico', aliases: ['historia', 'conversas', 'history'] },
   { name: 'buscar', aliases: ['busca', 'pesquisar', 'procurar', 'encontrar', 'search', 'find'] },
   { name: 'pdf', aliases: ['pdfs'] },
   { name: 'curriculo', aliases: ['curriculos', 'cv', 'resume', 'perfil-profissional'] },
@@ -221,6 +224,7 @@ class LocalAiService {
     this.obsidian = new ObsidianIndex();
     this.engine = new LlamafileManager(this.rootDir, this.codeDir);
     this.documents = new AiDocuments(this.rootDir, this.configManager, this.codeDir);
+    this.history = new ChatHistoryStore(this.rootDir, { getDocumentsFolder: () => this.documents.getDocumentsFolder() });
     this.lastAssistantText = '';
     this._exampleTokenCache = new WeakMap();
     this._rootContextCache = { mtimeMs: -1, content: '' };
@@ -964,7 +968,21 @@ class LocalAiService {
       res = { ok: false, text: `Erro na I.A local: ${cleanMsg}` };
     }
     res = Object.assign({}, res, { route: resolved.route, routeSource: resolved.source });
+    this._recordHistory(text, resolved.route, res);
     return res;
+  }
+
+  _recordHistory(userText, route, res) {
+    const cmd = (String(userText).match(/^\s*\/([a-z-]+)/i) || [])[1];
+    if (cmd && ['limpar', 'param', 'historico', 'historia', 'conversas', 'history'].includes(cmd.toLowerCase())) return;
+    try {
+      this.history.append({ role: 'user', route, text: userText });
+      if (res && res.text) {
+        this.history.append({ role: 'assistant', route, text: String(res.text).slice(0, 2000) });
+      }
+    } catch (err) {
+      console.warn('[LocalAiService] Falha ao gravar historico:', err.message);
+    }
   }
 
   async _chatByRoute({ route, cleanText }, { mode, tone, onChunk, onStatus }) {
@@ -2198,6 +2216,20 @@ class LocalAiService {
 
       case 'rapido':
         return this._handleFastSearchCommand(arg, reply);
+
+      case 'historico': {
+        if (arg) {
+          const hits = this.history.search(arg, 10);
+          if (!hits.length) return reply(`Nada encontrado no historico para "${arg}".`);
+          return reply([`HISTORICO PARA "${arg}":`].concat(hits.map((h) => `- ${h.day} ${h.time} [${h.who}][${h.route}] ${h.text.slice(0, 200)}`)).join('\n'));
+        }
+        const days = this.history.listDays().slice(0, 7);
+        if (!days.length) return reply('Nenhuma conversa guardada ainda.');
+        return reply(['ULTIMOS DIAS DE CONVERSA:'].concat(days.map((d) => {
+          const n = this.history.countDay(d);
+          return `- ${d} (${n} ${n === 1 ? 'mensagem' : 'mensagens'})`;
+        })).concat(['', 'Use /historico <termo> para buscar.']).join('\n'));
+      }
 
       case 'pdf':
         return this._handlePdfCommand(arg, ctx, reply);

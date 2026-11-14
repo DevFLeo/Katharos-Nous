@@ -38,6 +38,15 @@ const LlamafileManager = require('../src/main/llamafileManager');
 const LocalAiService = require('../src/main/localAiService');
 const { resolveRoute } = require('../src/main/routeResolver');
 const { nearestCorner, cornerBounds, pickDisplay } = require('../src/main/cornerSnap');
+const ChatHistoryStore = require('../src/main/chatHistoryStore');
+
+// Testes nunca gravam no historico real de conversas do usuario (somente em pastas temporarias)
+const REAL_DOCS_DIR = path.resolve(ROOT_DIR, 'arquivos');
+const origHistoryAppend = ChatHistoryStore.prototype.append;
+ChatHistoryStore.prototype.append = function guardedAppend(entry) {
+  if (path.resolve(this.getDir()).startsWith(REAL_DOCS_DIR + path.sep)) return '';
+  return origHistoryAppend.call(this, entry);
+};
 
 const results = [];
 
@@ -80,6 +89,9 @@ function walkJs(dir) {
 }
 
 async function main() {
+  const realHistoryDir = path.join(ROOT_DIR, 'arquivos', 'Historico');
+  const listRealHistory = () => (fs.existsSync(realHistoryDir) ? fs.readdirSync(realHistoryDir).map((f) => `${f}:${fs.statSync(path.join(realHistoryDir, f)).size}`).sort().join('|') : '');
+  const realHistoryBefore = listRealHistory();
   const realCm = new ConfigManager(ROOT_DIR, CODE_DIR);
   const realCfg = realCm.load();
 
@@ -705,6 +717,58 @@ async function main() {
     }
     const adv = html.slice(html.indexOf('class="settings-advanced"'), html.indexOf('</details>', html.indexOf('class="settings-advanced"')));
     assert.ok(adv.includes('id="cfg-ai-provider"') && adv.includes('id="cfg-ai-boost"'), 'Motor e /boost devem ficar em Avancado');
+  });
+  await runCase('Rotas', 'H1', 'historico: append cria arquivo do dia e lista', () => {
+    const dir = makeTempDir('kn-hist-');
+    try {
+      const st = new ChatHistoryStore(dir);
+      const p = st.append({ role: 'user', route: 'local', text: 'multa\ncontrato', at: new Date('2026-11-14T13:40:00') });
+      assert.ok(p.endsWith(path.join('arquivos', 'Historico', '2026-11-14.md')), p);
+      assert.ok(fs.readFileSync(p, 'utf-8').includes('- 13:40 [voce][local] multa contrato'));
+      assert.deepStrictEqual(st.listDays(), ['2026-11-14']);
+    } finally { rmSafe(dir); }
+  });
+  await runCase('Rotas', 'H2', 'historico: search e recentPrompts', () => {
+    const dir = makeTempDir('kn-hist-');
+    try {
+      const st = new ChatHistoryStore(dir);
+      st.append({ role: 'user', route: 'ia', text: 'quanto entrou via pix', at: new Date('2026-11-13T10:00:00') });
+      st.append({ role: 'assistant', route: 'ia', text: 'R$ 2.340,00', at: new Date('2026-11-13T10:00:05') });
+      st.append({ role: 'user', route: 'nota', text: 'bolo da vo', at: new Date('2026-11-14T09:00:00') });
+      assert.strictEqual(st.search('PIX').length, 1);
+      assert.deepStrictEqual(st.recentPrompts(), ['quanto entrou via pix', 'bolo da vo']);
+      assert.deepStrictEqual(st.recentPrompts(1), ['bolo da vo']);
+      assert.deepStrictEqual(new ChatHistoryStore(makeTempDir('kn-hist-vazio-')).recentPrompts(), []);
+    } finally { rmSafe(dir); }
+  });
+  await runCase('Rotas', 'H3', 'chat grava pergunta e resposta, ignora /limpar e /param', async () => {
+    const { svc, tmpRoot } = makeIsolatedSvc();
+    try {
+      svc.runTask = async () => ({ ok: true, text: 'resposta', source: 'llm' });
+      await svc.chat({ message: 'pergunta de teste' });
+      await svc.chat({ message: '/limpar' });
+      await svc.chat({ message: '/param perfil preciso' });
+      assert.deepStrictEqual(svc.history.recentPrompts(), ['pergunta de teste']);
+      const day = svc.history.listDays()[0];
+      const body = fs.readFileSync(path.join(tmpRoot, 'arquivos', 'Historico', `${day}.md`), 'utf-8');
+      assert.ok(body.includes('[katharos][ia] resposta'), body);
+    } finally { rmSafe(tmpRoot); }
+  });
+  await runCase('Rotas', 'H4', 'comando /historico lista dias e busca termo', async () => {
+    const { svc, tmpRoot } = makeIsolatedSvc();
+    try {
+      const empty = await svc.chat({ message: '/historico' });
+      assert.ok(empty.text.includes('Nenhuma conversa'), empty.text);
+      svc.history.append({ role: 'user', route: 'local', text: 'multa do contrato', at: new Date('2026-11-14T13:40:00') });
+      const list = await svc.chat({ message: '/historico' });
+      assert.ok(list.text.includes('2026-11-14') && list.text.includes('1 mensagem'), list.text);
+      const found = await svc.chat({ message: '/historico multa' });
+      assert.ok(found.text.includes('multa do contrato'), found.text);
+      assert.strictEqual(found.route, 'local');
+    } finally { rmSafe(tmpRoot); }
+  });
+  await runCase('Rotas', 'H5', 'bateria de testes nao grava no historico real do usuario', () => {
+    assert.strictEqual(listRealHistory(), realHistoryBefore, 'Testes alteraram arquivos/Historico real');
   });
   //@@ROTAS_NEXT@@
 

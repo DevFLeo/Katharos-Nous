@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('mpeApi', {
   removeDocument: (payload) => ipcRenderer.invoke('mpe:ai-remove-document', payload),
   aiChat: (payload) => ipcRenderer.invoke('mpe:ai-chat', payload),
   aiStatus: (payload) => ipcRenderer.invoke('mpe:ai-status', payload),
+  recentPrompts: () => ipcRenderer.invoke('mpe:ai-recent-prompts'),
   getPerfProfile: () => ipcRenderer.invoke('mpe:get-perf-profile'),
   setBoostMode: (mode) => ipcRenderer.invoke('mpe:set-boost-mode', mode),
 
