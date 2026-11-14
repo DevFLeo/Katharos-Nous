@@ -152,3 +152,10 @@ Todos os pontos ficam salvos no arquivo **[`mpe.config.json`](file:///c:/Projeto
 ## Posicao da Janela Flutuante (Canto Salvo)
 
 Arraste a janela do Katharos pelo cabecalho ou pelo mascote e solte perto de um canto da tela: ela desliza ate o canto mais proximo e o Katharos grava a escolha em `codigo/mpe.config.json`, na chave `ui.miniCorner` (`{ "corner": "tl" | "tr" | "bl" | "br", "displayId": <monitor> }`). Nas proximas aberturas (bandeja, atalho de teclado, Shift+Ctrl+Botao Direito ou inicializacao) a janela aparece no mesmo canto. Se o monitor salvo nao estiver mais conectado, ela usa o canto equivalente do monitor principal. Para voltar a abrir perto do cursor, use Ajustes > Basico > "Abrir perto do cursor".
+
+## Barra na Lateral e Setinhas de Tamanho
+
+- Arraste a janela pelo topo (ou pelo mascote) e solte com o cursor encostado na borda esquerda ou direita da tela: ela vira uma barra fina com o mascote e tres icones (Perguntar, Procurar, Guardar). A posicao fica em `ui.dock` (`{ "side": "left" | "right", "y": <altura>, "displayId": <monitor> }`).
+- Na barra: clique num icone para abrir; a seta aumenta; arraste o mascote para cima ou para baixo para mudar a altura, ou para longe da borda para voltar a ser janela.
+- No topo da janela, as setinhas mudam o tamanho: Barra, Simples, Grande (com a conversa). O quadrado ao lado abre e fecha a tela cheia.
+- O ultimo lugar onde voce soltou vale: soltar na lateral esquece o canto salvo; soltar perto de um canto esquece a barra. Ajustes > Basico > "Abrir perto do cursor" apaga os dois.

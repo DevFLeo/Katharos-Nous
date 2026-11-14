@@ -4,6 +4,24 @@
  */
 
 const CORNERS = ['tl', 'tr', 'bl', 'br'];
+const BAR_SIZE = { width: 84, height: 440 };
+const DOCK_THRESHOLD = 48;
+
+/** Lado da tela onde a janela vira barra quando o cursor solta perto da borda, ou null. */
+function edgeDockSide(cursorX, workArea, threshold = DOCK_THRESHOLD) {
+  if (cursorX <= workArea.x + threshold) return 'left';
+  if (cursorX >= workArea.x + workArea.width - threshold) return 'right';
+  return null;
+}
+
+/** Retangulo da barra encostada na borda, sem sair da tela. */
+function barBounds(side, y, workArea, size = BAR_SIZE) {
+  const width = size.width;
+  const height = Math.min(size.height, workArea.height);
+  const x = side === 'left' ? workArea.x : workArea.x + workArea.width - width;
+  const top = Math.max(workArea.y, Math.min(Math.round(y), workArea.y + workArea.height - height));
+  return { x, y: top, width, height };
+}
 
 function nearestCorner(bounds, workArea) {
   const cx = bounds.x + bounds.width / 2;
@@ -35,4 +53,4 @@ function pickDisplay(displays, primaryId, savedDisplayId) {
   );
 }
 
-module.exports = { CORNERS, nearestCorner, cornerBounds, pickDisplay };
+module.exports = { CORNERS, BAR_SIZE, DOCK_THRESHOLD, nearestCorner, cornerBounds, pickDisplay, edgeDockSide, barBounds };

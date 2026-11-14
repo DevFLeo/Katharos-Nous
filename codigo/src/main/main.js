@@ -45,7 +45,7 @@ const StartupManager = require('./startupManager');
 const HookBridge = require('./hookBridge');
 const ActionExecutor = require('./actionExecutor');
 const LocalAiService = require('./localAiService');
-const { nearestCorner, cornerBounds, pickDisplay } = require('./cornerSnap');
+const { nearestCorner, cornerBounds, pickDisplay, edgeDockSide, barBounds } = require('./cornerSnap');
 
 const CODE_DIR = path.resolve(__dirname, '..', '..');
 const ROOT_DIR = path.resolve(CODE_DIR, '..');
@@ -92,6 +92,104 @@ const MINI_DEFAULT_SIZE = { width: 576, height: 220 };
 let miniDragTimer = null;
 let miniDragMoved = false;
 let miniSnapTimer = null;
+// Forma da janela controlada pelo main: 'normal' (Simples/Grande), 'barra' (encostada na lateral) ou 'cheia'.
+let windowMode = 'normal';
+let dockSide = null;
+let fullRestoreBounds = null;
+const UNDOCK_DISTANCE = 140;
+
+function sendWindowMode(mode, side) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('mpe:window-mode', { mode, side: side || null });
+  }
+}
+
+function saveUi(patch) {
+  try {
+    const cfg = configManager.get();
+    configManager.save({ ui: Object.assign({}, cfg.ui, patch) });
+  } catch (err) {
+    logDebug(`[UI SAVE FAILED] ${err.message}`);
+  }
+}
+
+function enterBar(side, y, display) {
+  if (!mainWindow || mainWindow.isDestroyed()) return { mode: 'barra', side };
+  const b = mainWindow.getBounds();
+  const disp = display || screen.getDisplayMatching(b);
+  const wa = disp.workArea;
+  const finalSide = side || (b.x + b.width / 2 < wa.x + wa.width / 2 ? 'left' : 'right');
+  const target = barBounds(finalSide, typeof y === 'number' ? y : b.y, wa);
+  windowMode = 'barra';
+  dockSide = finalSide;
+  fullRestoreBounds = null;
+  animateMiniTo(target);
+  saveUi({ dock: { side: finalSide, y: target.y, displayId: disp.id }, miniCorner: null });
+  logDebug(`[MINI DOCK] ${finalSide} y=${target.y} display=${disp.id}`);
+  return { mode: 'barra', side: finalSide };
+}
+
+function leaveBar(point) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const b = mainWindow.getBounds();
+  const wa = screen.getDisplayMatching(b).workArea;
+  const w = MINI_DEFAULT_SIZE.width;
+  const h = MINI_DEFAULT_SIZE.height;
+  let x;
+  let y;
+  if (point) {
+    x = point.x - 40;
+    y = point.y - 20;
+  } else {
+    x = dockSide === 'left' ? wa.x + 12 : wa.x + wa.width - w - 12;
+    y = b.y;
+  }
+  x = Math.max(wa.x, Math.min(x, wa.x + wa.width - w));
+  y = Math.max(wa.y, Math.min(y, wa.y + wa.height - h));
+  windowMode = 'normal';
+  if (miniSnapTimer) {
+    clearInterval(miniSnapTimer);
+    miniSnapTimer = null;
+  }
+  mainWindow.setBounds({ x, y, width: w, height: h });
+}
+
+function enterFull() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const b = mainWindow.getBounds();
+  if (windowMode === 'normal') fullRestoreBounds = b;
+  windowMode = 'cheia';
+  if (miniSnapTimer) {
+    clearInterval(miniSnapTimer);
+    miniSnapTimer = null;
+  }
+  mainWindow.setBounds(screen.getDisplayMatching(b).workArea);
+}
+
+function leaveFull() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const wa = screen.getDisplayMatching(mainWindow.getBounds()).workArea;
+  windowMode = 'normal';
+  const back = fullRestoreBounds || {
+    x: wa.x + Math.round((wa.width - MINI_DEFAULT_SIZE.width) / 2),
+    y: wa.y + Math.round((wa.height - MINI_DEFAULT_SIZE.height) / 3),
+    width: MINI_DEFAULT_SIZE.width,
+    height: MINI_DEFAULT_SIZE.height
+  };
+  fullRestoreBounds = null;
+  mainWindow.setBounds(back);
+}
+
+function setWindowMode(mode) {
+  if (mode === 'barra') return enterBar(dockSide);
+  if (mode === 'cheia') {
+    enterFull();
+    return { mode: 'cheia', side: null };
+  }
+  if (windowMode === 'barra') leaveBar();
+  else if (windowMode === 'cheia') leaveFull();
+  return { mode: mode === 'grande' ? 'grande' : 'simples', side: null };
+}
 
 function getSavedMiniCorner() {
   const cfg = configManager.get();
@@ -131,12 +229,7 @@ function snapMiniToNearestCorner() {
   const display = screen.getDisplayMatching(b);
   const corner = nearestCorner(b, display.workArea);
   animateMiniTo(cornerBounds(corner, { width: b.width, height: b.height }, display.workArea));
-  try {
-    const cfg = configManager.get();
-    configManager.save({ ui: Object.assign({}, cfg.ui, { miniCorner: { corner, displayId: display.id } }) });
-  } catch (err) {
-    logDebug(`[MINI CORNER SAVE FAILED] ${err.message}`);
-  }
+  saveUi({ miniCorner: { corner, displayId: display.id }, dock: null });
   logDebug(`[MINI CORNER] ${corner} display=${display.id}`);
 }
 
@@ -144,7 +237,25 @@ function endMiniDrag() {
   const wasDragging = Boolean(miniDragTimer);
   const moved = miniDragMoved;
   stopMiniDrag();
-  if (wasDragging && moved) snapMiniToNearestCorner();
+  if (!wasDragging || !moved || !mainWindow || mainWindow.isDestroyed()) return;
+
+  if (windowMode === 'barra') {
+    // Barra arrastada para cima ou para baixo: grava a nova altura.
+    const b = mainWindow.getBounds();
+    const disp = screen.getDisplayMatching(b);
+    saveUi({ dock: { side: dockSide, y: b.y, displayId: disp.id }, miniCorner: null });
+    return;
+  }
+
+  const cursor = screen.getCursorScreenPoint();
+  const display = screen.getDisplayNearestPoint(cursor);
+  const side = edgeDockSide(cursor.x, display.workArea);
+  if (side) {
+    const res = enterBar(side, mainWindow.getBounds().y, display);
+    sendWindowMode(res.mode, res.side);
+    return;
+  }
+  snapMiniToNearestCorner();
 }
 
 function stopMiniDrag() {
@@ -155,12 +266,16 @@ function stopMiniDrag() {
 }
 
 function startMiniDrag() {
-  if (!mainWindow) return;
+  if (!mainWindow || windowMode === 'cheia') return;
   stopMiniDrag();
+  if (miniSnapTimer) {
+    clearInterval(miniSnapTimer);
+    miniSnapTimer = null;
+  }
   const start = screen.getCursorScreenPoint();
   const [wx, wy] = mainWindow.getPosition();
-  const offX = start.x - wx;
-  const offY = start.y - wy;
+  let offX = start.x - wx;
+  let offY = start.y - wy;
   miniDragMoved = false;
   miniDragTimer = setInterval(() => {
     if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible()) {
@@ -169,6 +284,23 @@ function startMiniDrag() {
     }
     const p = screen.getCursorScreenPoint();
     if (Math.abs(p.x - start.x) > 4 || Math.abs(p.y - start.y) > 4) miniDragMoved = true;
+
+    if (windowMode === 'barra') {
+      const wa = screen.getDisplayNearestPoint(p).workArea;
+      const distFromEdge = dockSide === 'left' ? p.x - wa.x : wa.x + wa.width - p.x;
+      if (distFromEdge > UNDOCK_DISTANCE) {
+        // Puxou a barra para longe da borda: volta a ser janela e segue o cursor.
+        leaveBar(p);
+        saveUi({ dock: null });
+        offX = 40;
+        offY = 20;
+        sendWindowMode('simples');
+        return;
+      }
+      mainWindow.setBounds(barBounds(dockSide, p.y - offY, wa));
+      return;
+    }
+
     const [w, h] = mainWindow.getSize();
     mainWindow.setBounds({ x: p.x - offX, y: p.y - offY, width: w, height: h });
   }, 8);
@@ -180,6 +312,11 @@ function startMiniDrag() {
 
 function resizeMiniWindow({ width, height } = {}) {
   if (!mainWindow || typeof width !== 'number' || typeof height !== 'number') return;
+  if (windowMode !== 'normal') return;
+  if (miniSnapTimer) {
+    clearInterval(miniSnapTimer);
+    miniSnapTimer = null;
+  }
   const b = mainWindow.getBounds();
   const display = screen.getDisplayMatching(b);
   const wa = display.workArea;
@@ -207,6 +344,29 @@ async function summonMiniAssistant({ x, y, source = 'mouse-hook', openChat = fal
   const targetY = typeof y === 'number' ? y : cursor.y;
 
   stopMiniDrag();
+
+  // Ao abrir pela bandeja ou ao ligar, volta como barra se ela estava encostada na lateral.
+  const savedDock = (configManager.get().ui || {}).dock;
+  const restoreBar = savedDock && !openChat && !openSettings && ['startup', 'tray-click', 'executable'].includes(source);
+  if (restoreBar) {
+    const disp = pickDisplay(screen.getAllDisplays(), screen.getPrimaryDisplay().id, savedDock.displayId);
+    windowMode = 'barra';
+    dockSide = savedDock.side;
+    mainWindow.setBounds(barBounds(savedDock.side, savedDock.y, disp.workArea));
+    mainWindow.show();
+    mainWindow.setAlwaysOnTop(true, 'screen-saver');
+    mainWindow.webContents.send('mpe:mini-assistant-summoned', {
+      source,
+      windowMode: 'barra',
+      side: savedDock.side,
+      originSystem: hookBridge.getOriginSystemInfo(),
+      config: configManager.get()
+    });
+    return;
+  }
+  windowMode = 'normal';
+  fullRestoreBounds = null;
+
   const currentDisplay = screen.getDisplayNearestPoint({ x: targetX, y: targetY });
   const wa = currentDisplay.workArea;
   const w = openSettings ? 820 : MINI_DEFAULT_SIZE.width;
@@ -224,7 +384,14 @@ async function summonMiniAssistant({ x, y, source = 'mouse-hook', openChat = fal
   winY = Math.max(wa.y, Math.min(winY, wa.y + wa.height - h));
 
   const savedCorner = getSavedMiniCorner();
-  if (savedCorner) {
+  if (savedDock && !savedCorner) {
+    // Barra salva, mas aberto pelo atalho: abre a janela encostada no lado da barra.
+    const disp = pickDisplay(screen.getAllDisplays(), screen.getPrimaryDisplay().id, savedDock.displayId);
+    const dwa = disp.workArea;
+    winX = savedDock.side === 'left' ? dwa.x + 12 : dwa.x + dwa.width - w - 12;
+    winY = Math.max(dwa.y, Math.min(savedDock.y, dwa.y + dwa.height - h));
+    dockSide = savedDock.side;
+  } else if (savedCorner) {
     const display = pickDisplay(screen.getAllDisplays(), screen.getPrimaryDisplay().id, savedCorner.displayId);
     const placed = cornerBounds(savedCorner.corner, { width: w, height: h }, display.workArea);
     winX = placed.x;
@@ -699,6 +866,10 @@ function setupIpcHandlers() {
 
   ipcMain.on('mpe:mini-drag-start', () => startMiniDrag());
   ipcMain.on('mpe:mini-drag-end', () => endMiniDrag());
+  ipcMain.handle('mpe:set-window-mode', (_e, mode) => {
+    const res = setWindowMode(String(mode || ''));
+    return Object.assign({ ok: true }, res);
+  });
   ipcMain.on('mpe:mini-resize', (_e, size) => resizeMiniWindow(size));
 
   ipcMain.handle('mpe:hide-hud', () => {

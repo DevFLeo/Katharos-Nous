@@ -92,7 +92,8 @@ class ConfigManager {
       ui: {
         defaultRoute: 'ia',
         largeText: false,
-        miniCorner: null
+        miniCorner: null,
+        dock: null
       },
       machines: {}
     };
@@ -209,6 +210,16 @@ class ConfigManager {
       rootData.ui.miniCorner = null;
     } else {
       rootData.ui.miniCorner = { corner: corner.corner, displayId: Number.isFinite(corner.displayId) ? corner.displayId : null };
+    }
+    const dock = rootData.ui.dock;
+    if (!dock || typeof dock !== 'object' || !['left', 'right'].includes(dock.side)) {
+      rootData.ui.dock = null;
+    } else {
+      rootData.ui.dock = {
+        side: dock.side,
+        y: Number.isFinite(dock.y) ? dock.y : 0,
+        displayId: Number.isFinite(dock.displayId) ? dock.displayId : null
+      };
     }
 
     if (!rootData.machines || typeof rootData.machines !== 'object') {

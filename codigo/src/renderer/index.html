@@ -14,6 +14,21 @@
     <span id="hud-toast-text">Ação concluída!</span>
   </div>
 
+  <!-- 1b. BARRA LATERAL (janela encostada na borda da tela) -->
+  <div id="kataros-bar" class="kataros-bar dock-right hidden" role="toolbar" aria-label="Katharos">
+    <div id="bar-drag-handle" class="bar-mascot" title="Arraste para mover ou tirar da borda">
+      <img src="../../assets/icon.png" alt="Katharos" draggable="false" />
+    </div>
+    <span id="bar-status" class="bar-status">PRONTO</span>
+    <button type="button" id="btn-bar-route-ia" class="bar-btn route-ia" data-route="ia" title="Perguntar" aria-label="Perguntar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 21l1.9-5.4A8 8 0 1 1 21 12z"/></svg></button>
+    <button type="button" id="btn-bar-route-local" class="bar-btn route-local" data-route="local" title="Procurar" aria-label="Procurar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg></button>
+    <button type="button" id="btn-bar-route-nota" class="bar-btn route-nota" data-route="nota" title="Guardar" aria-label="Guardar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg></button>
+    <span class="bar-divider" aria-hidden="true"></span>
+    <button type="button" id="btn-bar-expand" class="bar-expand" title="Aumentar" aria-label="Aumentar janela">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline class="bar-arrow" points="15 6 9 12 15 18"/></svg>
+    </button>
+  </div>
+
   <!-- 2. MINI ASSISTENTE FLUTUANTE KATHAROS NOUS (LOWER THIRDS SCI-FI) -->
   <div id="mini-assistant-overlay" class="mini-assistant-overlay">
     <div class="mini-sci-hud" id="mini-sci-hud-card">
@@ -37,6 +52,18 @@
             <button id="btn-mini-guide" class="mini-btn-icon" title="Desempenho /boost e Kits">/BOOST</button>
             <button id="btn-mini-settings" class="mini-btn-icon" title="Configurações">AJUSTES</button>
             <button id="btn-mini-chat-toggle" class="mini-btn-icon" title="Abrir Chat Lateral">CHAT</button>
+            <div class="size-ctrl" role="group" aria-label="Tamanho da janela">
+              <button type="button" id="btn-size-down" class="size-btn" title="Diminuir" aria-label="Diminuir">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 6 9 12 15 18"/></svg>
+              </button>
+              <span id="size-label" class="size-label">Simples</span>
+              <button type="button" id="btn-size-up" class="size-btn" title="Aumentar" aria-label="Aumentar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+              </button>
+            </div>
+            <button type="button" id="btn-size-full" class="size-btn size-full" title="Tela cheia" aria-label="Tela cheia">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+            </button>
             <button id="btn-mini-close" class="mini-btn-icon close" title="Ocultar (ESC)">X</button>
           </div>
         </div>

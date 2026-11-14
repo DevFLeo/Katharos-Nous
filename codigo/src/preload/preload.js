@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('mpeApi', {
   miniDragStart: () => ipcRenderer.send('mpe:mini-drag-start'),
   miniDragEnd: () => ipcRenderer.send('mpe:mini-drag-end'),
   miniResize: (size) => ipcRenderer.send('mpe:mini-resize', size),
+  setWindowMode: (mode) => ipcRenderer.invoke('mpe:set-window-mode', mode),
   hideHud: () => ipcRenderer.invoke('mpe:hide-hud'),
   quitApp: () => ipcRenderer.invoke('mpe:quit-app'),
 
@@ -44,5 +45,6 @@ contextBridge.exposeInMainWorld('mpeApi', {
   onMiniAssistantSummoned: (callback) => ipcRenderer.on('mpe:mini-assistant-summoned', (_event, data) => callback(data)),
   onAiChatChunk: (callback) => ipcRenderer.on('mpe:ai-chat-chunk', (_event, data) => callback(data)),
   onAiChatStatus: (callback) => ipcRenderer.on('mpe:ai-chat-status', (_event, data) => callback(data)),
-  onConfigUpdated: (callback) => ipcRenderer.on('mpe:config-updated', (_event, cfg) => callback(cfg))
+  onConfigUpdated: (callback) => ipcRenderer.on('mpe:config-updated', (_event, cfg) => callback(cfg)),
+  onWindowMode: (callback) => ipcRenderer.on('mpe:window-mode', (_event, data) => callback(data))
 });

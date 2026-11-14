@@ -37,7 +37,7 @@ const ConfigManager = require('../src/main/configManager');
 const LlamafileManager = require('../src/main/llamafileManager');
 const LocalAiService = require('../src/main/localAiService');
 const { resolveRoute } = require('../src/main/routeResolver');
-const { nearestCorner, cornerBounds, pickDisplay } = require('../src/main/cornerSnap');
+const { nearestCorner, cornerBounds, pickDisplay, edgeDockSide, barBounds, BAR_SIZE } = require('../src/main/cornerSnap');
 const ChatHistoryStore = require('../src/main/chatHistoryStore');
 
 // Testes nunca gravam no historico real de conversas do usuario (somente em pastas temporarias)
@@ -647,7 +647,7 @@ async function main() {
     fs.writeFileSync(path.join(tmpCode, 'mpe.config.json'), JSON.stringify({ profile: { userName: 'X' } }), 'utf8');
     try {
       const loaded = new ConfigManager(tmpRoot, tmpCode).load();
-      assert.deepStrictEqual(loaded.ui, { defaultRoute: 'ia', largeText: false, miniCorner: null });
+      assert.deepStrictEqual(loaded.ui, { defaultRoute: 'ia', largeText: false, miniCorner: null, dock: null });
     } finally { rmSafe(tmpRoot); }
   });
   await runCase('Rotas', 'C10', 'ui preservada ao salvar e rota invalida corrigida', () => {
@@ -824,6 +824,31 @@ async function main() {
       const body = fs.readFileSync(path.join(svc.history.getDir(), `${day}.md`), 'utf8');
       assert.ok(!body.includes('segredo123'), body);
     } finally { rmSafe(tmpRoot); }
+  });
+  await runCase('Rotas', 'D1', 'soltar perto da lateral vira barra; longe nao', () => {
+    const wa = { x: 0, y: 0, width: 1920, height: 1040 };
+    assert.strictEqual(edgeDockSide(10, wa), 'left');
+    assert.strictEqual(edgeDockSide(1915, wa), 'right');
+    assert.strictEqual(edgeDockSide(500, wa), null);
+    assert.strictEqual(edgeDockSide(1930, { x: 1920, y: 0, width: 1280, height: 1000 }), 'left');
+    assert.strictEqual(edgeDockSide(3195, { x: 1920, y: 0, width: 1280, height: 1000 }), 'right');
+  });
+  await runCase('Rotas', 'D2', 'barra encosta na borda e nao sai da tela', () => {
+    const wa = { x: 0, y: 0, width: 1920, height: 1040 };
+    assert.deepStrictEqual(BAR_SIZE, { width: 84, height: 440 });
+    assert.deepStrictEqual(barBounds('left', 300, wa), { x: 0, y: 300, width: 84, height: 440 });
+    assert.deepStrictEqual(barBounds('right', 300, wa), { x: 1836, y: 300, width: 84, height: 440 });
+    assert.deepStrictEqual(barBounds('right', 900, wa), { x: 1836, y: 600, width: 84, height: 440 });
+    assert.deepStrictEqual(barBounds('left', -50, wa), { x: 0, y: 0, width: 84, height: 440 });
+    assert.deepStrictEqual(barBounds('left', 0, { x: 0, y: 0, width: 1366, height: 400 }), { x: 0, y: 0, width: 84, height: 400 });
+  });
+  await runCase('Rotas', 'D3', 'barra lateral e setinhas de tamanho presentes na tela', () => {
+    const html = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'index.html'), 'utf8');
+    const preload = fs.readFileSync(path.join(CODE_DIR, 'src', 'preload', 'preload.js'), 'utf8');
+    for (const id of ['kataros-bar', 'btn-bar-route-ia', 'btn-bar-route-local', 'btn-bar-route-nota', 'btn-bar-expand', 'btn-size-down', 'btn-size-up', 'btn-size-full', 'size-label']) {
+      assert.ok(html.includes(`id="${id}"`), `${id} ausente`);
+    }
+    assert.ok(preload.includes('setWindowMode') && preload.includes('onWindowMode'), 'preload sem setWindowMode/onWindowMode');
   });
   //@@ROTAS_NEXT@@
 

@@ -9,6 +9,7 @@
   let syncMiniWindowSizeRef = () => {};
   let setRouteRef = () => {};
   let sendSideChatMessageRef = async () => {};
+  let applyWindowModeRef = () => {};
   let refreshMascotIdleRef = async () => {};
 
   function applyUiPrefs(cfg) {
@@ -33,16 +34,19 @@
   let pendingForgetCorner = false;
   const CORNER_NAMES = { tl: 'superior esquerdo', tr: 'superior direito', bl: 'inferior esquerdo', br: 'inferior direito' };
 
-  function renderCornerInfo(corner) {
+  function renderCornerInfo(corner, dock) {
     const info = document.getElementById('cfg-corner-info');
     const btn = document.getElementById('btn-cfg-forget-corner');
-    const has = Boolean(corner && CORNER_NAMES[corner.corner]);
+    const hasDock = Boolean(dock && (dock.side === 'left' || dock.side === 'right'));
+    const hasCorner = Boolean(corner && CORNER_NAMES[corner.corner]);
     if (info) {
-      info.textContent = has
-        ? `A janela fica no canto ${CORNER_NAMES[corner.corner]}. Arraste para outro canto para trocar.`
-        : 'A janela abre perto do cursor. Arraste até um canto para ela ficar lá.';
+      info.textContent = hasDock
+        ? `A janela vira barra na lateral ${dock.side === 'left' ? 'esquerda' : 'direita'}. Arraste para o meio da tela para trocar.`
+        : hasCorner
+        ? `A janela fica no canto ${CORNER_NAMES[corner.corner]}. Arraste para outro canto ou para a lateral para trocar.`
+        : 'A janela abre perto do cursor. Arraste até um canto, ou até a lateral para virar barra.';
     }
-    if (btn) btn.classList.toggle('hidden', !has);
+    if (btn) btn.classList.toggle('hidden', !(hasDock || hasCorner));
   }
 
   async function openSettingsModal() {
@@ -82,7 +86,7 @@
     setVal('cfg-default-route', ui.defaultRoute || 'ia');
     setChk('cfg-large-text', ui.largeText);
     pendingForgetCorner = false;
-    renderCornerInfo(ui.miniCorner);
+    renderCornerInfo(ui.miniCorner, ui.dock);
 
     const ai = cfg.ai || {};
     setVal('cfg-ai-provider', ai.provider || 'auto');
@@ -152,11 +156,12 @@
       const latest = await window.mpeApi.getConfig();
       latestUi = latest && latest.ui;
     } catch (_) {}
-    const prevUi = Object.assign({}, currentConfig.ui || {}, latestUi ? { miniCorner: latestUi.miniCorner || null } : {});
+    const prevUi = Object.assign({}, currentConfig.ui || {}, latestUi ? { miniCorner: latestUi.miniCorner || null, dock: latestUi.dock || null } : {});
     currentConfig.ui = Object.assign({}, prevUi, {
       defaultRoute: val('cfg-default-route', prevUi.defaultRoute || 'ia'),
       largeText: chk('cfg-large-text', Boolean(prevUi.largeText)),
-      miniCorner: pendingForgetCorner ? null : prevUi.miniCorner || null
+      miniCorner: pendingForgetCorner ? null : prevUi.miniCorner || null,
+      dock: pendingForgetCorner ? null : prevUi.dock || null
     });
     pendingForgetCorner = false;
 
@@ -259,7 +264,7 @@
     if (btnForgetCorner) {
       btnForgetCorner.addEventListener('click', () => {
         pendingForgetCorner = true;
-        renderCornerInfo(null);
+        renderCornerInfo(null, null);
         showToast('Ao salvar, a janela volta a abrir perto do cursor.');
       });
     }
@@ -735,12 +740,16 @@
       });
 
       document.getElementById('btn-mini-chat-toggle').addEventListener('click', () => {
-        sideDrawer.classList.toggle('hidden');
-        syncMiniWindowSize();
+        const mode = currentWindowMode();
+        requestWindowMode(mode === 'simples' ? 'grande' : 'simples');
       });
 
       // Arrasto da janela compacta pelo cabecalho ou pelo no circular
-      const dragHandles = [document.getElementById('mini-drag-handle'), document.querySelector('.mini-node-ring')];
+      const dragHandles = [
+        document.getElementById('mini-drag-handle'),
+        document.querySelector('.mini-node-ring'),
+        document.getElementById('bar-drag-handle')
+      ];
       dragHandles.forEach((handle) => {
         if (!handle) return;
         handle.addEventListener('pointerdown', (e) => {
@@ -984,6 +993,100 @@
         renderRoute();
       }
       setRouteRef = setRoute;
+
+      // Tamanho da janela: Barra (lateral) / Simples / Grande (com conversa) / Tela cheia
+      const SIZE_NAMES = { barra: 'Barra', simples: 'Simples', grande: 'Grande', cheia: 'Tela cheia' };
+      const SIZE_ORDER = ['barra', 'simples', 'grande'];
+      const barEl = document.getElementById('kataros-bar');
+
+      function currentWindowMode() {
+        if (document.body.classList.contains('mode-bar')) return 'barra';
+        if (document.body.classList.contains('mode-full')) return 'cheia';
+        return sideDrawer.classList.contains('hidden') ? 'simples' : 'grande';
+      }
+
+      function updateSizeUi() {
+        const mode = currentWindowMode();
+        const label = document.getElementById('size-label');
+        if (label) label.textContent = SIZE_NAMES[mode];
+        const up = document.getElementById('btn-size-up');
+        if (up) up.disabled = mode === 'grande' || mode === 'cheia';
+        const full = document.getElementById('btn-size-full');
+        if (full) {
+          const t = mode === 'cheia' ? 'Sair da tela cheia' : 'Tela cheia';
+          full.title = t;
+          full.setAttribute('aria-label', t);
+        }
+      }
+
+      function applyWindowMode(mode, side) {
+        const isBar = mode === 'barra';
+        document.body.classList.toggle('mode-bar', isBar);
+        document.body.classList.toggle('mode-full', mode === 'cheia');
+        if (barEl) {
+          barEl.classList.toggle('hidden', !isBar);
+          if (side) {
+            barEl.classList.toggle('dock-left', side === 'left');
+            barEl.classList.toggle('dock-right', side !== 'left');
+          }
+        }
+        if (mode === 'simples') sideDrawer.classList.add('hidden');
+        if (mode === 'grande' || mode === 'cheia') sideDrawer.classList.remove('hidden');
+        updateSizeUi();
+        if (!isBar && mode !== 'cheia') syncMiniWindowSize();
+      }
+      applyWindowModeRef = applyWindowMode;
+
+      async function requestWindowMode(mode) {
+        let res = null;
+        try {
+          res = window.mpeApi.setWindowMode ? await window.mpeApi.setWindowMode(mode) : null;
+        } catch (_) {}
+        applyWindowMode(mode, res && res.side);
+        return res;
+      }
+
+      document.getElementById('btn-size-down').addEventListener('click', () => {
+        const mode = currentWindowMode();
+        if (mode === 'cheia') return requestWindowMode('grande');
+        const i = SIZE_ORDER.indexOf(mode);
+        if (i > 0) requestWindowMode(SIZE_ORDER[i - 1]);
+      });
+      document.getElementById('btn-size-up').addEventListener('click', () => {
+        const i = SIZE_ORDER.indexOf(currentWindowMode());
+        if (i >= 0 && i < SIZE_ORDER.length - 1) requestWindowMode(SIZE_ORDER[i + 1]);
+      });
+      document.getElementById('btn-size-full').addEventListener('click', () => {
+        requestWindowMode(currentWindowMode() === 'cheia' ? 'grande' : 'cheia');
+      });
+
+      ['ia', 'local'].forEach((route) => {
+        document.getElementById(`btn-bar-route-${route}`).addEventListener('click', async () => {
+          await requestWindowMode('grande');
+          setRoute(route);
+          if (sideInputEl) sideInputEl.focus();
+        });
+      });
+      document.getElementById('btn-bar-route-nota').addEventListener('click', async () => {
+        await requestWindowMode('simples');
+        textarea.focus();
+      });
+      document.getElementById('btn-bar-expand').addEventListener('click', () => requestWindowMode('simples'));
+
+      if (window.mpeApi.onWindowMode) {
+        window.mpeApi.onWindowMode((data) => {
+          if (data && SIZE_NAMES[data.mode]) applyWindowMode(data.mode, data.side);
+        });
+      }
+
+      // O texto de estado do mascote (PRONTO, GUARDADO...) aparece tambem na barra.
+      const nodeSubEl = document.getElementById('kataros-node-sub');
+      const barStatusEl = document.getElementById('bar-status');
+      if (nodeSubEl && barStatusEl && typeof MutationObserver !== 'undefined') {
+        new MutationObserver(() => {
+          barStatusEl.textContent = nodeSubEl.textContent;
+        }).observe(nodeSubEl, { childList: true, characterData: true, subtree: true });
+      }
 
       document.querySelectorAll('.route-bar .route-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
@@ -1369,6 +1472,7 @@
         }
       });
       drawerObserver.observe(sideDrawer, { attributes: true, attributeFilter: ['class'] });
+      new MutationObserver(() => updateSizeUi()).observe(sideDrawer, { attributes: true, attributeFilter: ['class'] });
 
       sendSideChatMessageRef = () => sendSideChatMessage();
       async function sendSideChatMessage() {
@@ -1628,6 +1732,11 @@
           katarosMascot.resume();
         }
         refreshMascotIdleRef();
+        if (payload && payload.windowMode === 'barra') {
+          applyWindowModeRef('barra', payload.side);
+        } else {
+          applyWindowModeRef(payload && payload.openChat ? 'grande' : 'simples');
+        }
         if (payload && payload.openSettings) {
           openSettingsModal();
         }
