@@ -3556,3 +3556,21 @@ body.large-text {
   font-size: 8px;
   font-weight: 700;
 }
+
+/* Ajustes: secao Avancado recolhida */
+.settings-advanced > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.settings-advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-advanced > summary::after {
+  content: ' +';
+}
+
+.settings-advanced[open] > summary::after {
+  content: ' -';
+}

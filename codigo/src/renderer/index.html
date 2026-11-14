@@ -274,6 +274,24 @@
       </div>
       <div class="modal-body grid-2">
         <div>
+          <h3 class="section-subtitle">Básico</h3>
+          <label class="field-label" for="cfg-default-route">O que fazer quando eu não escolho</label>
+          <select id="cfg-default-route" class="field-input">
+            <option value="ia">Perguntar (vai para a inteligência)</option>
+            <option value="local">Procurar (busca nos arquivos)</option>
+            <option value="nota">Guardar (salva como anotação)</option>
+          </select>
+
+          <label class="checkbox-row">
+            <input type="checkbox" id="cfg-large-text" />
+            <span><strong>Letras grandes</strong> (aumenta tudo em 25%)</span>
+          </label>
+
+          <div id="cfg-corner-row" class="input-with-btn">
+            <span id="cfg-corner-info" class="field-label">A janela abre perto do cursor.</span>
+            <button type="button" id="btn-cfg-forget-corner" class="hud-btn subtle small hidden">Abrir perto do cursor</button>
+          </div>
+
           <h3 class="section-subtitle">Geral &amp; Windows</h3>
           <label class="field-label">Nome de Usuário</label>
           <input type="text" id="cfg-user-name" class="field-input" placeholder="Seu nome" />
@@ -325,6 +343,8 @@
           <label class="field-label">Pasta Padrão dentro do Vault</label>
           <input type="text" id="cfg-obsidian-folder" class="field-input" placeholder="Katharos_Notas" />
 
+          <details class="settings-advanced">
+          <summary class="section-subtitle">Avançado</summary>
           <label class="field-label">Motor de I.A</label>
           <select id="cfg-ai-provider" class="field-input">
             <option value="auto">Auto (Mozilla llamafile + Katharos Engine)</option>
@@ -339,6 +359,7 @@
             <option value="turbo">Turbo /boost (Prioridade Alta + Max Threads)</option>
             <option value="eco">Eco (2048 ctx, Menor Uso de RAM)</option>
           </select>
+          </details>
 
           <div class="machine-info-box" style="margin-top:14px;">
             <div><strong>Máquina:</strong> <span id="info-machine-name">-</span></div>

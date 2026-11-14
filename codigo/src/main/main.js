@@ -388,11 +388,12 @@ function createWindow() {
             const open = !document.getElementById('modal-settings').classList.contains('hidden');
             const hasStartupToggle = Boolean(document.getElementById('cfg-start-windows'));
             const hasObsidianInput = Boolean(document.getElementById('cfg-obsidian-vault'));
-            return { settingsOpen: open, hasStartupToggle, hasObsidianInput };
+            const hasDefaultRoute = Boolean(document.getElementById('cfg-default-route'));
+            return { settingsOpen: open, hasStartupToggle, hasObsidianInput, hasDefaultRoute };
           })()
         `);
         console.log('KATHAROS_SETTINGS_TEST:', JSON.stringify(settingsCheck));
-        if (!settingsCheck.settingsOpen || !settingsCheck.hasStartupToggle || !settingsCheck.hasObsidianInput) {
+        if (!settingsCheck.settingsOpen || !settingsCheck.hasStartupToggle || !settingsCheck.hasObsidianInput || !settingsCheck.hasDefaultRoute) {
           throw new Error('Settings modal check failed: ' + JSON.stringify(settingsCheck));
         }
         const imgSettings = await mainWindow.webContents.capturePage();

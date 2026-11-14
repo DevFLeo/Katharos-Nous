@@ -30,6 +30,21 @@
     }, 3800);
   }
 
+  let pendingForgetCorner = false;
+  const CORNER_NAMES = { tl: 'superior esquerdo', tr: 'superior direito', bl: 'inferior esquerdo', br: 'inferior direito' };
+
+  function renderCornerInfo(corner) {
+    const info = document.getElementById('cfg-corner-info');
+    const btn = document.getElementById('btn-cfg-forget-corner');
+    const has = Boolean(corner && CORNER_NAMES[corner.corner]);
+    if (info) {
+      info.textContent = has
+        ? `A janela fica no canto ${CORNER_NAMES[corner.corner]}. Arraste para outro canto para trocar.`
+        : 'A janela abre perto do cursor. Arraste até um canto para ela ficar lá.';
+    }
+    if (btn) btn.classList.toggle('hidden', !has);
+  }
+
   function openSettingsModal() {
     const cfg = currentConfig || {};
     const setVal = (id, v) => {
@@ -57,6 +72,12 @@
     const obs = cfg.obsidian || {};
     setVal('cfg-obsidian-vault', obs.vaultPath || './arquivos/Obsidian_Vault');
     setVal('cfg-obsidian-folder', obs.defaultFolder || obs.defaultSubfolder || 'Katharos_Notas');
+
+    const ui = cfg.ui || {};
+    setVal('cfg-default-route', ui.defaultRoute || 'ia');
+    setChk('cfg-large-text', ui.largeText);
+    pendingForgetCorner = false;
+    renderCornerInfo(ui.miniCorner);
 
     const ai = cfg.ai || {};
     setVal('cfg-ai-provider', ai.provider || 'auto');
@@ -120,6 +141,20 @@
       defaultSubfolder: obsFolder
     });
 
+    // A janela pode ter sido arrastada para outro canto depois que esta tela abriu: le o canto mais recente.
+    let latestUi = null;
+    try {
+      const latest = await window.mpeApi.getConfig();
+      latestUi = latest && latest.ui;
+    } catch (_) {}
+    const prevUi = Object.assign({}, currentConfig.ui || {}, latestUi ? { miniCorner: latestUi.miniCorner || null } : {});
+    currentConfig.ui = Object.assign({}, prevUi, {
+      defaultRoute: val('cfg-default-route', prevUi.defaultRoute || 'ia'),
+      largeText: chk('cfg-large-text', Boolean(prevUi.largeText)),
+      miniCorner: pendingForgetCorner ? null : prevUi.miniCorner || null
+    });
+    pendingForgetCorner = false;
+
     const prevBoostMode = (currentConfig.ai && currentConfig.ai.boostMode) || 'balanced';
     const nextBoostMode = val('cfg-ai-boost', prevBoostMode);
     currentConfig.ai = Object.assign({}, currentConfig.ai, {
@@ -128,6 +163,7 @@
     });
 
     currentConfig = await window.mpeApi.saveConfig(currentConfig);
+    applyUiPrefs(currentConfig);
     if (nextBoostMode !== prevBoostMode && window.mpeApi.setBoostMode) {
       await window.mpeApi.setBoostMode(nextBoostMode);
     }
@@ -214,6 +250,14 @@
     if (btnMiniGuide) btnMiniGuide.addEventListener('click', openGuideModal);
 
     const btnCancelSettings = document.getElementById('btn-cancel-settings');
+    const btnForgetCorner = document.getElementById('btn-cfg-forget-corner');
+    if (btnForgetCorner) {
+      btnForgetCorner.addEventListener('click', () => {
+        pendingForgetCorner = true;
+        renderCornerInfo(null);
+        showToast('Ao salvar, a janela volta a abrir perto do cursor.');
+      });
+    }
     if (btnCancelSettings) {
       btnCancelSettings.addEventListener('click', () => {
         document.getElementById('modal-settings').classList.add('hidden');

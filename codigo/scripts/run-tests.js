@@ -698,6 +698,14 @@ async function main() {
     assert.ok(html.indexOf('class="mini-more"') < html.indexOf('id="btn-mini-send"'), 'Enviar deve ficar dentro de Mais opcoes');
     assert.ok(mascotJs.includes('setIdleText') && mascotJs.includes('flashSub') && !mascotJs.includes("'LOCAL OK'"), 'Estados do mascote ausentes');
   });
+  await runCase('Rotas', 'R11', 'Ajustes basicos (acao padrao, letras grandes, canto) e Avancado recolhido', () => {
+    const html = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'index.html'), 'utf8');
+    for (const id of ['cfg-default-route', 'cfg-large-text', 'btn-cfg-forget-corner']) {
+      assert.ok(html.includes(`id="${id}"`), `${id} ausente`);
+    }
+    const adv = html.slice(html.indexOf('class="settings-advanced"'), html.indexOf('</details>', html.indexOf('class="settings-advanced"')));
+    assert.ok(adv.includes('id="cfg-ai-provider"') && adv.includes('id="cfg-ai-boost"'), 'Motor e /boost devem ficar em Avancado');
+  });
   //@@ROTAS_NEXT@@
 
   const passed = results.filter((r) => r.status === 'PASS').length;
