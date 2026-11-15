@@ -647,7 +647,7 @@ async function main() {
     fs.writeFileSync(path.join(tmpCode, 'mpe.config.json'), JSON.stringify({ profile: { userName: 'X' } }), 'utf8');
     try {
       const loaded = new ConfigManager(tmpRoot, tmpCode).load();
-      assert.deepStrictEqual(loaded.ui, { defaultRoute: 'ia', largeText: false, miniCorner: null, dock: null });
+      assert.deepStrictEqual(loaded.ui, { defaultRoute: 'ia', largeText: false, showCharts: true, miniCorner: null, dock: null });
     } finally { rmSafe(tmpRoot); }
   });
   await runCase('Rotas', 'C10', 'ui preservada ao salvar e rota invalida corrigida', () => {
@@ -859,6 +859,104 @@ async function main() {
     assert.ok(!controls.includes('id="btn-mini-guide"'), '/BOOST ainda no topo');
     assert.ok(html.includes('id="btn-mini-guide"'), 'botao de desempenho sumiu');
     assert.ok(/\.mini-tag\s*\{[^}]*white-space:\s*nowrap/.test(css), 'nome sem nowrap');
+  });
+  // ===== Visual ciano v2: respostas com grafico, tela inicial, relatorio, conversas =====
+  const KnInsights = require('../src/renderer/js/insights.js');
+  const finDoc = {
+    id: 'doc-ext', title: 'Extrato Novembro', fileName: 'extrato_novembro.ofx', category: 'Extratos', createdAt: '2026-11-14T10:00:00Z',
+    parsedFinancial: {
+      isFinancial: true, balance: 1835.4, balanceDate: '30/11/2026', totalCredits: 4580, totalDebits: 3244.6, entryCount: 8, accountInfo: '',
+      entries: [
+        { date: '03/11/2026', description: 'PIX RECEBIDO JOAO', amount: 400 },
+        { date: '05/11/2026', description: 'ALUGUEL', amount: -1200 },
+        { date: '07/11/2026', description: 'PIX RECEBIDO MARIA', amount: 250 },
+        { date: '10/11/2026', description: 'DEPOSITO', amount: 3930 },
+        { date: '12/11/2026', description: 'MERCADO', amount: -640 },
+        { date: '15/11/2026', description: 'LUZ', amount: -210 },
+        { date: '20/11/2026', description: 'MERCADO', amount: -1000 },
+        { date: '25/11/2026', description: 'FARMACIA', amount: -194.6 }
+      ]
+    }
+  };
+  const otherDocs = [
+    { id: 'd1', title: 'Curriculo', category: 'Curriculos', createdAt: '2026-11-01T10:00:00Z' },
+    { id: 'd2', title: 'contrato_aluguel', category: 'Contratos', createdAt: '2026-11-02T10:00:00Z' },
+    { id: 'd3', title: 'script', category: 'Codigos', createdAt: '2026-11-03T10:00:00Z' }
+  ];
+
+  await runCase('Visual', 'V1', 'pergunta escolhe o tipo de grafico certo', () => {
+    assert.strictEqual(KnInsights.detectIntent('quanto entrou via pix esse mes?'), 'pix');
+    assert.strictEqual(KnInsights.detectIntent('qual foi o maior gasto no extrato?'), 'gastos');
+    assert.strictEqual(KnInsights.detectIntent('qual meu saldo?'), 'saldo');
+    assert.strictEqual(KnInsights.detectIntent('quantos documentos eu tenho?'), 'docs');
+    assert.strictEqual(KnInsights.detectIntent('o que diz o contrato sobre multa?'), null);
+    assert.strictEqual(KnInsights.detectIntent('/curriculo adaptar resumo'), null);
+  });
+
+  await runCase('Visual', 'V2', 'pix vira colunas com o total e o arquivo de origem', () => {
+    const spec = KnInsights.buildInsight('quanto entrou via pix?', [finDoc]);
+    assert.strictEqual(spec.kind, 'cols');
+    assert.strictEqual(spec.items.length, 2);
+    assert.strictEqual(spec.big, 'R$ 650,00');
+    assert.strictEqual(spec.source, 'extrato_novembro.ofx');
+  });
+
+  await runCase('Visual', 'V3', 'gastos viram ranking somando a mesma descricao', () => {
+    const spec = KnInsights.buildInsight('maior gasto', [finDoc]);
+    assert.strictEqual(spec.kind, 'rank');
+    assert.strictEqual(spec.items[0].label, 'Mercado');
+    assert.strictEqual(spec.items[0].value, 1640);
+  });
+
+  await runCase('Visual', 'V4', 'saldo vira linha terminando no saldo do extrato', () => {
+    const spec = KnInsights.buildInsight('qual meu saldo?', [finDoc]);
+    assert.strictEqual(spec.kind, 'line');
+    assert.ok(Math.abs(spec.items[spec.items.length - 1].value - 1835.4) < 0.001);
+    assert.strictEqual(spec.trio.length, 3);
+  });
+
+  await runCase('Visual', 'V5', 'sem extrato ou em Guardar nao ha grafico; documentos contam por tipo', () => {
+    assert.strictEqual(KnInsights.buildInsight('qual meu saldo?', otherDocs), null);
+    assert.strictEqual(KnInsights.buildInsight('qual meu saldo?', [finDoc], { route: 'nota' }), null);
+    const docs = KnInsights.buildInsight('quantos documentos eu tenho?', otherDocs.concat([finDoc]));
+    assert.strictEqual(docs.kind, 'rank');
+    assert.strictEqual(docs.big, '4');
+  });
+
+  await runCase('Visual', 'V6', 'relatorio e tela inicial usam dados reais do documento', () => {
+    const rep = KnInsights.buildReport(finDoc);
+    assert.strictEqual(rep.glance[0].value, 'R$ 4.580,00');
+    assert.strictEqual(rep.recent[0].date, '25/11');
+    const home = KnInsights.homeSummary(otherDocs.concat([finDoc]));
+    assert.strictEqual(home.total, 4);
+    assert.strictEqual(home.last.title, 'Extrato Novembro');
+    assert.ok(home.saldo && home.saldo.big === 'R$ 1.835,40');
+    assert.strictEqual(KnInsights.homeSummary(otherDocs).saldo, null);
+  });
+
+  await runCase('Visual', 'V7', 'conversas recentes por dia, so perguntas do usuario', () => {
+    const tmpH = fs.mkdtempSync(path.join(os.tmpdir(), 'kn-hist-'));
+    const hs = new ChatHistoryStore(tmpH);
+    hs.append({ role: 'user', route: 'ia', text: 'qual meu saldo?', at: new Date(2026, 10, 13, 9, 0) });
+    hs.append({ role: 'assistant', route: 'ia', text: 'R$ 10', at: new Date(2026, 10, 13, 9, 1) });
+    hs.append({ role: 'user', route: 'local', text: 'multa contrato', at: new Date(2026, 10, 14, 10, 0) });
+    const list = hs.recentQuestions(7, 10);
+    assert.deepStrictEqual(list.map((i) => i.text), ['multa contrato', 'qual meu saldo?']);
+    assert.strictEqual(list[0].route, 'local');
+    fs.rmSync(tmpH, { recursive: true, force: true });
+  });
+
+  await runCase('Visual', 'V8', 'tela usa o tema ciano, os scripts novos e a chave de graficos', () => {
+    const html = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'index.html'), 'utf8');
+    const theme = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'styles', 'theme.css'), 'utf8');
+    const view = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'js', 'insights-view.js'), 'utf8');
+    assert.ok(html.indexOf('styles/theme.css') > html.indexOf('styles/main.css'), 'theme.css precisa vir depois de main.css');
+    assert.ok(html.indexOf('js/insights.js') < html.indexOf('js/app.js') && html.indexOf('js/insights-view.js') < html.indexOf('js/app.js'));
+    ['id="cfg-show-charts"', 'id="modal-report"', 'id="modal-history"', 'id="kn-dropzone"', 'id="btn-side-chat-history"', 'id="kataros-mascot-canvas"'].forEach((id) => assert.ok(html.includes(id), `faltou ${id}`));
+    assert.ok(/--kn-cyan-hi:\s*#73F3FF/i.test(theme) && /--kn-gold:\s*#E5B84B/i.test(theme), 'tokens ciano/dourado');
+    assert.ok(!/\.innerHTML\s*=/.test(view), 'graficos sem innerHTML');
+    const emoji = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
+    [html, theme, view].forEach((t) => assert.ok(!emoji.test(t), 'emoji proibido'));
   });
   //@@ROTAS_NEXT@@
 

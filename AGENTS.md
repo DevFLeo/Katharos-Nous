@@ -4,6 +4,8 @@
 - Proibicao estrita de emojis em qualquer arquivo de codigo, logs, interfaces visuais (HTML/CSS/JS) ou mensagens de console.
 - Textos da interface (Mini Assistente, Chat Lateral, modais e notificacoes) devem ser concisos, diretos e objetivos, sem explicacoes redundantes ou duplicadas.
 - Manter identidade visual Sci-Fi Ciano/Azul (`#56B6ED`, `#73F3FF`, `#0A101A`, `#080D16`) com mascote 3D Giroscopio Dourado/Ambar (`#FFD584`, `#FFB833`, `#E5B84B`) e titulo `Katharos Nous | katharos AI`.
+- Tokens visuais em `codigo/src/renderer/styles/theme.css` (camada sobre `main.css`): fundo `#070B12`, painel `#0D1522`, ciano `#56B6ED`/`#73F3FF`; dourado so no mascote. Acoes: Perguntar ciano `#73F3FF`, Procurar violeta `#B7A6FF`, Guardar verde `#86D6A0`, sempre com cor + icone + palavra. Rotulos em letra normal; um brilho por tela (o mascote).
+- Graficos nas respostas (`js/insights.js` + `js/insights-view.js`) so aparecem quando o documento tem numeros, e sempre dizem de qual arquivo vieram; podem ser desligados em Ajustes.
 
 ## 2. Identidade Nativa no Windows e Barra de Tarefas
 - Chamar explicitamente `app.setAppUserModelId('DevFLeo.KatharosNousAI')` de forma sincrona no topo de `main.js` antes de criar janelas.

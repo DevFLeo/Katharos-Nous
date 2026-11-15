@@ -92,6 +92,7 @@ class ConfigManager {
       ui: {
         defaultRoute: 'ia',
         largeText: false,
+        showCharts: true,
         miniCorner: null,
         dock: null
       },
@@ -205,6 +206,7 @@ class ConfigManager {
       rootData.ui.defaultRoute = 'ia';
     }
     rootData.ui.largeText = Boolean(rootData.ui.largeText);
+    rootData.ui.showCharts = rootData.ui.showCharts !== false;
     const corner = rootData.ui.miniCorner;
     if (!corner || typeof corner !== 'object' || !['tl', 'tr', 'bl', 'br'].includes(corner.corner)) {
       rootData.ui.miniCorner = null;

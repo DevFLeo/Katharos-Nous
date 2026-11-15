@@ -85,6 +85,7 @@
     const ui = cfg.ui || {};
     setVal('cfg-default-route', ui.defaultRoute || 'ia');
     setChk('cfg-large-text', ui.largeText);
+    setChk('cfg-show-charts', ui.showCharts !== false);
     pendingForgetCorner = false;
     renderCornerInfo(ui.miniCorner, ui.dock);
 
@@ -160,6 +161,7 @@
     currentConfig.ui = Object.assign({}, prevUi, {
       defaultRoute: val('cfg-default-route', prevUi.defaultRoute || 'ia'),
       largeText: chk('cfg-large-text', Boolean(prevUi.largeText)),
+      showCharts: chk('cfg-show-charts', prevUi.showCharts !== false),
       miniCorner: pendingForgetCorner ? null : prevUi.miniCorner || null,
       dock: pendingForgetCorner ? null : prevUi.dock || null
     });
@@ -358,6 +360,64 @@
       modal.classList.remove('hidden');
       syncMiniWindowSize();
       if (titleInput) titleInput.focus();
+      renderImportTypes().catch(() => {});
+    }
+
+    // Importar: "Ja guardados" com barras por tipo
+    async function renderImportTypes() {
+      const box = document.getElementById('kn-import-types');
+      if (!box || !window.KnInsights || !window.KnInsightsView || !window.mpeApi.listDocuments) return;
+      let docs = [];
+      try {
+        const res = await window.mpeApi.listDocuments({});
+        docs = res && Array.isArray(res.documents) ? res.documents : [];
+      } catch (_) {}
+      const spec = window.KnInsights.buildInsight('quantos documentos', docs);
+      if (!spec) {
+        box.classList.add('hidden');
+        return;
+      }
+      const card = window.KnInsightsView.renderInsightCard(spec);
+      const foot = card && card.querySelector('.kn-insight-foot');
+      if (foot) foot.remove();
+      box.replaceChildren(card);
+      box.classList.remove('hidden');
+    }
+
+    // Importar: area de arrastar e soltar (o caminho vem do Electron via preload)
+    function useDroppedPath(p) {
+      if (!p) return;
+      document.getElementById('ai-doc-filepath').value = p;
+      const titleEl = document.getElementById('ai-doc-title');
+      if (titleEl && !titleEl.value.trim()) titleEl.value = p.split(/[\\/]/).pop().replace(/\.[^.]+$/, '');
+    }
+    const knDrop = document.getElementById('kn-dropzone');
+    if (knDrop) {
+      const pick = async () => {
+        const picked = window.mpeApi.selectDocumentFile ? await window.mpeApi.selectDocumentFile() : await window.mpeApi.selectFile();
+        useDroppedPath(picked);
+      };
+      knDrop.addEventListener('click', pick);
+      knDrop.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          pick();
+        }
+      });
+      knDrop.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        knDrop.classList.add('is-over');
+      });
+      knDrop.addEventListener('dragleave', () => knDrop.classList.remove('is-over'));
+      knDrop.addEventListener('drop', (e) => {
+        e.preventDefault();
+        knDrop.classList.remove('is-over');
+        const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (!f) return;
+        const p = window.mpeApi.pathForFile ? window.mpeApi.pathForFile(f) : '';
+        if (p) useDroppedPath(p);
+        else showToast('Não consegui ler esse arquivo. Use o botão Arquivo...');
+      });
     }
 
     const btnPickAiDocFile = document.getElementById('btn-ai-doc-pick-file');
@@ -865,6 +925,7 @@
             <div class="side-msg-content">Historico limpo. Use o botao Comandos ou envie /ajuda.</div>
           </div>
         `;
+        knRenderHome().catch(() => {});
       });
 
       let lastSideResponse = '';
@@ -1475,6 +1536,243 @@
       new MutationObserver(() => updateSizeUi()).observe(sideDrawer, { attributes: true, attributeFilter: ['class'] });
 
       sendSideChatMessageRef = () => sendSideChatMessage();
+      // =====================================================================
+      // RESPOSTAS COM GRAFICO, TELA INICIAL, RELATORIO DO EXTRATO E CONVERSAS
+      // Grafico so quando o documento tem numeros; todo grafico diz de qual arquivo veio.
+      // =====================================================================
+      const KN_ROUTE_COLOR = { ia: 'var(--kn-ask)', local: 'var(--kn-find)', nota: 'var(--kn-keep)' };
+      let knDocsCache = { at: 0, docs: [] };
+      let knHistoryItems = [];
+
+      async function knLoadDocs(force) {
+        if (!window.mpeApi.listDocuments) return [];
+        if (!force && Date.now() - knDocsCache.at < 15000) return knDocsCache.docs;
+        try {
+          const res = await window.mpeApi.listDocuments({});
+          const docs = res && Array.isArray(res.documents) ? res.documents : [];
+          knDocsCache = { at: Date.now(), docs };
+          return docs;
+        } catch (_) {
+          return knDocsCache.docs;
+        }
+      }
+
+      function knChartsOn() {
+        const ui = (currentConfig && currentConfig.ui) || {};
+        return ui.showCharts !== false;
+      }
+
+      async function knAttachInsight(astDiv, prompt, res, route) {
+        if (!knChartsOn() || !window.KnInsights || !window.KnInsightsView) return;
+        if (!res || !res.ok) return;
+        if (!window.KnInsights.detectIntent(prompt)) return;
+        const docs = await knLoadDocs(true);
+        const spec = window.KnInsights.buildInsight(prompt, docs, { route: res.route || route });
+        if (!spec) return;
+        const card = window.KnInsightsView.renderInsightCard(spec, { onOpenReport: knOpenReport });
+        if (!card) return;
+        astDiv.appendChild(card);
+        const msgsEl = document.getElementById('side-chat-messages');
+        if (msgsEl) msgsEl.scrollTop = msgsEl.scrollHeight;
+      }
+
+      async function knOpenReport(docId) {
+        const docs = await knLoadDocs(false);
+        const doc = docs.find((d) => d.id === docId) || window.KnInsights.pickFinancialDoc(docs);
+        const rep = window.KnInsights.buildReport(doc);
+        if (!rep) {
+          showToast('Não achei lançamentos neste documento.');
+          return;
+        }
+        document.getElementById('kn-report-title').textContent = rep.title;
+        document.getElementById('kn-report-sub').textContent = `De: ${rep.source}${rep.accountInfo ? ` | ${rep.accountInfo}` : ''}`;
+        document.getElementById('kn-report-body').replaceChildren(window.KnInsightsView.renderReport(rep));
+        document.getElementById('modal-report').classList.remove('hidden');
+        syncMiniWindowSize();
+        document.getElementById('btn-report-close').focus();
+      }
+
+      function knCloseModal(id) {
+        const m = document.getElementById(id);
+        if (m) m.classList.add('hidden');
+        syncMiniWindowSize();
+      }
+
+      function knGreeting() {
+        const h = new Date().getHours();
+        return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+      }
+
+      function knDayLabel(day) {
+        const pad = (n) => String(n).padStart(2, '0');
+        const d = new Date();
+        const today = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        d.setDate(d.getDate() - 1);
+        const yday = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        if (day === today) return 'Hoje';
+        if (day === yday) return 'Ontem';
+        const m = String(day).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        return m ? `${m[3]}/${m[2]}` : String(day);
+      }
+
+      function knUsePrompt(text, route) {
+        if (!sideInputEl) return;
+        sideInputEl.value = text;
+        if (route) setRoute(route);
+        autoResizeSideInput();
+        renderRoute();
+        sideInputEl.focus();
+      }
+
+      async function knRenderHome() {
+        const msgsEl = document.getElementById('side-chat-messages');
+        if (!msgsEl || !window.KnInsights || !window.KnInsightsView) return;
+        if (msgsEl.querySelector('.side-msg.user')) return;
+        const V = window.KnInsightsView;
+        const el = V.el;
+        const docs = await knLoadDocs(true);
+        let recent = [];
+        try {
+          recent = window.mpeApi.historyList ? await window.mpeApi.historyList({ maxDays: 7, maxItems: 3 }) : [];
+        } catch (_) {}
+        if (msgsEl.querySelector('.side-msg.user')) return;
+        const old = msgsEl.querySelector('.kn-home');
+        if (old) old.remove();
+        const sum = window.KnInsights.homeSummary(docs);
+
+        const home = el('section', 'kn-home');
+        home.setAttribute('aria-label', 'Início');
+        const hello = el('div', 'kn-home-hello');
+        hello.appendChild(el('strong', '', knGreeting()));
+        hello.appendChild(el('span', '', new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })));
+        home.appendChild(hello);
+
+        const grid = el('div', 'kn-home-grid');
+        const c1 = el('div', 'kn-home-card');
+        c1.appendChild(el('span', 'kn-card-lbl', 'Guardados'));
+        c1.appendChild(el('span', 'kn-big', String(sum.total)));
+        c1.appendChild(el('span', 'kn-big-lbl', sum.byType.length ? sum.byType.map((t) => `${t.label} ${t.value}`).join(' | ') : 'Nada guardado ainda'));
+        grid.appendChild(c1);
+
+        const c2 = el('div', 'kn-home-card');
+        c2.appendChild(el('span', 'kn-card-lbl', 'Último guardado'));
+        c2.appendChild(el('span', '', sum.last ? sum.last.title : 'Nenhum ainda'));
+        c2.appendChild(el('span', 'kn-big-lbl', sum.last ? sum.last.category : 'Use Guardar ou Trazer arquivo'));
+        grid.appendChild(c2);
+
+        if (sum.saldo && knChartsOn()) {
+          const c3 = el('div', 'kn-home-card');
+          c3.appendChild(el('span', 'kn-card-lbl', 'Extrato mais recente'));
+          c3.appendChild(el('span', 'kn-big', sum.saldo.big));
+          c3.appendChild(V.sparkline(sum.saldo.points));
+          c3.appendChild(el('span', 'kn-big-lbl', `De: ${sum.saldo.source}`));
+          grid.appendChild(c3);
+        }
+        home.appendChild(grid);
+
+        if (Array.isArray(recent) && recent.length) {
+          const box = el('div', 'kn-home-card');
+          box.appendChild(el('span', 'kn-card-lbl', 'Continuar de onde parou'));
+          const list = el('div', 'kn-home-list');
+          recent.forEach((r) => {
+            const b = el('button', 'kn-home-item');
+            b.type = 'button';
+            const dot = el('span', 'kn-dot');
+            dot.style.background = KN_ROUTE_COLOR[r.route] || KN_ROUTE_COLOR.ia;
+            b.appendChild(dot);
+            b.appendChild(el('span', '', r.text));
+            b.appendChild(el('span', 'kn-big-lbl', knDayLabel(r.day)));
+            b.addEventListener('click', () => knUsePrompt(r.text, r.route));
+            list.appendChild(b);
+          });
+          box.appendChild(list);
+          home.appendChild(box);
+        }
+
+        const tips = [
+          'Comece com @nota para guardar sem passar pela I.A.',
+          'Use /curriculo para perguntar sobre o seu currículo.',
+          'Use /pdf e um tema para perguntar sobre um PDF guardado.',
+          'Use /codigo para pedir, explicar ou revisar um trecho de código.',
+          'Depois de trazer um extrato, pergunte "qual meu saldo?".',
+          'Use /modelo salvar para guardar um texto que você repete sempre.'
+        ];
+        const tip = el('div', 'kn-home-card kn-home-tip');
+        tip.appendChild(el('span', 'kn-card-lbl', 'Dica'));
+        tip.appendChild(el('span', '', tips[Math.floor(Math.random() * tips.length)]));
+        home.appendChild(tip);
+
+        msgsEl.insertBefore(home, msgsEl.firstChild);
+      }
+
+      function knRenderHistory(filter) {
+        const list = document.getElementById('kn-history-list');
+        if (!list || !window.KnInsightsView) return;
+        const el = window.KnInsightsView.el;
+        const q = window.KnInsights.norm(filter || '').trim();
+        const items = knHistoryItems.filter((i) => !q || window.KnInsights.norm(i.text).includes(q));
+        list.replaceChildren();
+        if (!items.length) {
+          list.appendChild(el('p', 'kn-muted', q ? 'Nada encontrado.' : 'Nenhuma conversa ainda.'));
+          return;
+        }
+        let lastDay = '';
+        items.forEach((i) => {
+          if (i.day !== lastDay) {
+            lastDay = i.day;
+            list.appendChild(el('div', 'kn-hist-day', knDayLabel(i.day)));
+          }
+          const card = el('div', 'kn-hist-card');
+          const dot = el('span', 'kn-dot');
+          dot.style.background = KN_ROUTE_COLOR[i.route] || KN_ROUTE_COLOR.ia;
+          card.appendChild(dot);
+          const txt = el('div', 'kn-hist-txt');
+          txt.appendChild(el('span', 'kn-hist-title', i.text));
+          txt.appendChild(el('span', 'kn-hist-meta', `${(ROUTE_UI[i.route] || ROUTE_UI.ia).tag} | ${i.time}`));
+          card.appendChild(txt);
+          if (window.KnInsights.detectIntent(i.text)) card.appendChild(el('span', 'kn-hist-meta', 'com gráfico'));
+          const b = el('button', 'kn-btn-outline', 'Abrir');
+          b.type = 'button';
+          b.addEventListener('click', () => {
+            knCloseModal('modal-history');
+            knUsePrompt(i.text, i.route);
+          });
+          card.appendChild(b);
+          list.appendChild(card);
+        });
+      }
+
+      async function knOpenHistory() {
+        try {
+          knHistoryItems = window.mpeApi.historyList ? await window.mpeApi.historyList({ maxDays: 14, maxItems: 60 }) : [];
+        } catch (_) {
+          knHistoryItems = [];
+        }
+        const f = document.getElementById('kn-history-filter');
+        if (f) f.value = '';
+        knRenderHistory('');
+        document.getElementById('modal-history').classList.remove('hidden');
+        syncMiniWindowSize();
+        if (f) f.focus();
+      }
+
+      const knBtnHistory = document.getElementById('btn-side-chat-history');
+      if (knBtnHistory) knBtnHistory.addEventListener('click', () => knOpenHistory());
+      const knHistFilter = document.getElementById('kn-history-filter');
+      if (knHistFilter) knHistFilter.addEventListener('input', () => knRenderHistory(knHistFilter.value));
+      const knBtnHistClose = document.getElementById('btn-history-close');
+      if (knBtnHistClose) knBtnHistClose.addEventListener('click', () => knCloseModal('modal-history'));
+      const knBtnRepClose = document.getElementById('btn-report-close');
+      if (knBtnRepClose) knBtnRepClose.addEventListener('click', () => knCloseModal('modal-report'));
+      const knBtnRepAsk = document.getElementById('btn-report-ask');
+      if (knBtnRepAsk) {
+        knBtnRepAsk.addEventListener('click', () => {
+          knCloseModal('modal-report');
+          knUsePrompt('/extrato ', 'ia');
+        });
+      }
+      knRenderHome().catch(() => {});
+
       async function sendSideChatMessage() {
         const input = document.getElementById('side-chat-input');
         const prompt = input.value.trim();
@@ -1495,6 +1793,8 @@
         const sendBtn = document.getElementById('btn-side-chat-send');
         sendBtn.disabled = true;
         const msgs = document.getElementById('side-chat-messages');
+        const knHomeEl = msgs.querySelector('.kn-home');
+        if (knHomeEl) knHomeEl.remove();
 
         const userDiv = document.createElement('div');
         userDiv.className = 'side-msg user';
@@ -1544,6 +1844,7 @@
           }
           contentEl.dataset.rawText = finalText;
           contentEl.innerHTML = formatSideMessageHtml(finalText);
+          knAttachInsight(astDiv, prompt, res, sentRoute).catch(() => {});
           if (res && (res.source === 'llm' || res.source === 'builtin')) lastSideResponse = finalText;
           astDiv.querySelector('.side-msg-time').textContent =
             res && res.source === 'llm'

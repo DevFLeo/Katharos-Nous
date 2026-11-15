@@ -810,6 +810,14 @@ function setupIpcHandlers() {
     }
   });
 
+  ipcMain.handle('mpe:ai-history-list', async (_event, { maxDays, maxItems } = {}) => {
+    try {
+      return localAiService.history.recentQuestions(maxDays || 7, maxItems || 30);
+    } catch (_) {
+      return [];
+    }
+  });
+
   ipcMain.handle('mpe:ai-status', async (_event, { warmUp } = {}) => {
     if (warmUp) localAiService.warmUp();
     return await localAiService.getStatus();

@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('mpeApi', {
   // Configuracoes & Sistema
@@ -37,6 +37,14 @@ contextBridge.exposeInMainWorld('mpeApi', {
   aiChat: (payload) => ipcRenderer.invoke('mpe:ai-chat', payload),
   aiStatus: (payload) => ipcRenderer.invoke('mpe:ai-status', payload),
   recentPrompts: () => ipcRenderer.invoke('mpe:ai-recent-prompts'),
+  historyList: (opts) => ipcRenderer.invoke('mpe:ai-history-list', opts || {}),
+  pathForFile: (file) => {
+    try {
+      return webUtils && typeof webUtils.getPathForFile === 'function' ? webUtils.getPathForFile(file) : '';
+    } catch (_) {
+      return '';
+    }
+  },
   getPerfProfile: () => ipcRenderer.invoke('mpe:get-perf-profile'),
   setBoostMode: (mode) => ipcRenderer.invoke('mpe:set-boost-mode', mode),
 

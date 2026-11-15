@@ -6,6 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self';" />
   <title>Katharos Nous | katharos AI</title>
   <link rel="stylesheet" href="styles/main.css" />
+  <link rel="stylesheet" href="styles/theme.css" />
 </head>
 <body class="mode-mini-assistant">
   <!-- 1. NOTIFICACAO FLUTUANTE (TOAST) -->
@@ -138,6 +139,7 @@
         <div id="side-ai-status" class="side-ai-status offline">Verificando motor...</div>
       </div>
       <div class="side-chat-header-actions">
+        <button type="button" id="btn-side-chat-history" class="side-header-tool-btn" title="Ver conversas anteriores">Conversas</button>
         <button type="button" id="btn-side-chat-tune" class="side-header-tool-btn" aria-pressed="false" title="Mostrar modo, tom e perfil">Ajustes finos</button>
         <button type="button" id="btn-side-chat-textsize" class="side-header-tool-btn" aria-pressed="false" title="Alternar tamanho do texto">A+</button>
         <button type="button" id="btn-side-chat-wide" class="side-header-tool-btn" aria-pressed="false" title="Expandir largura do chat">Expandir</button>
@@ -256,8 +258,8 @@
   <div id="modal-save-ai-file" class="modal-backdrop hidden">
     <div class="modal-card">
       <div class="modal-header">
-        <h2>Salvar arquivo na I.A local?</h2>
-        <p>Organiza em ./arquivos/&lt;Categoria&gt;/ e libera consultas de extratos, saldos e recibos na Katharos Nous | katharos AI.</p>
+        <h2>Trazer arquivo</h2>
+        <p>Fica guardado só neste computador, em ./arquivos, e passa a responder perguntas sobre ele.</p>
       </div>
       <div class="modal-body">
         <label class="field-label">Título / Nome do Arquivo</label>
@@ -274,19 +276,57 @@
           <option value="Geral">Geral</option>
         </select>
 
-        <label class="field-label">Importar Arquivo do Computador (Opcional: .OFX, .CSV, .TXT, .MD, .PDF)</label>
+        <div id="kn-dropzone" class="kn-dropzone" tabindex="0" role="button" aria-label="Arraste um arquivo para cá ou clique para escolher">
+          <span>Arraste o arquivo para cá</span>
+          <small>PDF, extratos (OFX, CSV), textos, notas e código</small>
+        </div>
+        <label class="field-label">Arquivo escolhido</label>
         <div class="input-with-btn">
           <input type="text" id="ai-doc-filepath" class="field-input" placeholder="Nenhum arquivo selecionado (ou use o texto abaixo)" readonly />
           <button type="button" id="btn-ai-doc-pick-file" class="hud-btn small">Arquivo...</button>
           <button type="button" id="btn-ai-doc-clear-file" class="hud-btn subtle small">Limpar</button>
         </div>
 
-        <label class="field-label">Conteúdo / Extrato / Recibo</label>
+        <label class="field-label">Ou cole o texto aqui</label>
         <textarea id="ai-doc-content" class="field-textarea" rows="4" placeholder="Cole aqui o extrato, recibo ou notas..."></textarea>
       </div>
       <div class="modal-footer between">
         <button id="btn-cancel-ai-doc" class="hud-btn subtle">Cancelar</button>
-        <button id="btn-confirm-ai-doc" class="hud-btn primary">Salvar na I.A Local</button>
+        <button id="btn-confirm-ai-doc" class="hud-btn primary">Guardar</button>
+      </div>
+      <div id="kn-import-types" class="kn-import-types kn-panel hidden"></div>
+    </div>
+  </div>
+
+  <!-- 4b. RELATORIO DO EXTRATO (Ver lancamentos) -->
+  <div id="modal-report" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="kn-report-title">
+    <div class="modal-card wide">
+      <div class="modal-header">
+        <h2 id="kn-report-title">Extrato</h2>
+        <p id="kn-report-sub"></p>
+      </div>
+      <div id="kn-report-body" class="modal-body"></div>
+      <div class="modal-footer between">
+        <button type="button" id="btn-report-ask" class="hud-btn">Perguntar sobre este extrato</button>
+        <button type="button" id="btn-report-close" class="hud-btn primary">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4c. CONVERSAS ANTERIORES EM CARDS -->
+  <div id="modal-history" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="kn-history-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="kn-history-title">Conversas</h2>
+        <p>Perguntas dos últimos dias. Abrir coloca a pergunta de volta na caixa.</p>
+      </div>
+      <div class="modal-body">
+        <label for="kn-history-filter" class="sr-only">Procurar nas conversas</label>
+        <input type="text" id="kn-history-filter" class="field-input kn-hist-search" placeholder="Procurar nas conversas..." autocomplete="off" />
+        <div id="kn-history-list"></div>
+      </div>
+      <div class="modal-footer end">
+        <button type="button" id="btn-history-close" class="hud-btn primary">Fechar</button>
       </div>
     </div>
   </div>
@@ -313,6 +353,10 @@
             <span><strong>Letras grandes</strong> (aumenta tudo em 25%)</span>
           </label>
 
+          <label class="checkbox-row">
+            <input type="checkbox" id="cfg-show-charts" checked />
+            <span><strong>Mostrar gráficos nas respostas</strong> (só quando o documento tem números)</span>
+          </label>
           <div id="cfg-corner-row" class="input-with-btn">
             <span id="cfg-corner-info" class="field-label">A janela abre perto do cursor.</span>
             <button type="button" id="btn-cfg-forget-corner" class="hud-btn subtle small hidden">Abrir perto do cursor</button>
@@ -452,6 +496,8 @@
 
   <script src="js/i18n-tones.js"></script>
   <script src="js/kataros3d.js"></script>
+  <script src="js/insights.js"></script>
+  <script src="js/insights-view.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

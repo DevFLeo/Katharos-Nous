@@ -101,6 +101,19 @@ class ChatHistoryStore {
     return prompts.reverse();
   }
 
+  // Perguntas do usuario dos ultimos dias, mais novas primeiro (para a lista de conversas em cards)
+  recentQuestions(maxDays = 7, maxItems = 30) {
+    const out = [];
+    for (const day of this.listDays().slice(0, Math.max(1, maxDays))) {
+      const entries = this.readDay(day).filter((e) => e.who === 'voce').reverse();
+      for (const e of entries) {
+        out.push({ day, time: e.time, route: e.route, text: e.text });
+        if (out.length >= maxItems) return out;
+      }
+    }
+    return out;
+  }
+
   countDay(day) {
     return this.readDay(day).length;
   }
