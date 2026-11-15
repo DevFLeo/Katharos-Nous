@@ -1229,7 +1229,9 @@ body.mode-mini-assistant .side-chat-drawer.cmds-open {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1 1 auto;
   min-width: 0;
+  overflow: hidden;
 }
 
 .mini-tag {
@@ -1237,6 +1239,9 @@ body.mode-mini-assistant .side-chat-drawer.cmds-open {
   font-weight: 800;
   color: var(--gold-secondary);
   letter-spacing: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .mini-title-text {
@@ -1251,6 +1256,7 @@ body.mode-mini-assistant .side-chat-drawer.cmds-open {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .mini-btn-icon {

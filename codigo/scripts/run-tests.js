@@ -850,6 +850,16 @@ async function main() {
     }
     assert.ok(preload.includes('setWindowMode') && preload.includes('onWindowMode'), 'preload sem setWindowMode/onWindowMode');
   });
+  await runCase('Rotas', 'D4', 'topo da janela sem texto longo nem /BOOST (nada quebra linha)', () => {
+    const html = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'index.html'), 'utf8');
+    const css = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'styles', 'main.css'), 'utf8');
+    const header = html.slice(html.indexOf('class="mini-capsule-header"'), html.indexOf('id="mini-ai-textarea"'));
+    assert.ok(!header.includes('mini-title-text'), 'titulo longo ainda no topo');
+    const controls = header.slice(header.indexOf('mini-header-controls'));
+    assert.ok(!controls.includes('id="btn-mini-guide"'), '/BOOST ainda no topo');
+    assert.ok(html.includes('id="btn-mini-guide"'), 'botao de desempenho sumiu');
+    assert.ok(/\.mini-tag\s*\{[^}]*white-space:\s*nowrap/.test(css), 'nome sem nowrap');
+  });
   //@@ROTAS_NEXT@@
 
   const passed = results.filter((r) => r.status === 'PASS').length;
