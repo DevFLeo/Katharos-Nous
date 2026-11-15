@@ -193,7 +193,7 @@ body.mode-mini-assistant .side-chat-drawer { border: 1px solid var(--kn-line-2) 
 .side-msg-copy-btn, .side-msg-reuse-btn { border-radius: 8px !important; border: 1px solid var(--kn-line) !important; background: transparent !important; color: var(--kn-text-2) !important; }
 .side-msg-code, .side-msg-inline-code { background: var(--kn-bg) !important; border: 1px solid var(--kn-line) !important; color: var(--kn-cyan-hi) !important; }
 .side-chat-input-bar { background: var(--kn-bg) !important; border-top: 1px solid var(--kn-line) !important; }
-.side-chat-textarea { background: var(--kn-panel) !important; border-radius: var(--kn-r-ctl) !important; color: var(--kn-text) !important; }
+.side-chat-textarea { background: var(--kn-panel) !important; border-radius: var(--kn-r-ctl) !important; color: var(--kn-text) !important; box-shadow: none !important; }
 .side-cmds-panel { background: var(--kn-panel) !important; border: 1px solid var(--kn-line-2) !important; border-radius: var(--kn-r-ctl) !important; }
 .side-cmd-cat { border-radius: 999px !important; text-transform: none !important; letter-spacing: 0 !important; }
 .side-cmd-cat.active { background: var(--kn-cyan-soft) !important; border-color: var(--kn-cyan-hi) !important; color: var(--kn-text) !important; }
@@ -335,7 +335,8 @@ body.mode-mini-assistant .side-chat-drawer { border: 1px solid var(--kn-line-2) 
   color: var(--kn-text); font: inherit; font-size: 14px; text-align: left; cursor: pointer;
 }
 .kn-home-item:hover { border-color: var(--kn-line-2); }
-.kn-home-item span:first-of-type { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kn-home-item .kn-home-txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kn-home-item .kn-dot { flex-shrink: 0; }
 .kn-home-tip { background: color-mix(in srgb, var(--kn-cyan-hi) 7%, var(--kn-panel)); border-color: #23506A; }
 .kn-home-tip code { color: var(--kn-cyan-hi); }
 
@@ -361,3 +362,71 @@ body.mode-mini-assistant .side-chat-drawer { border: 1px solid var(--kn-line-2) 
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* =========================================================================
+   TELA CHEIA: mascote na coluna da esquerda, topo fino, chat centralizado.
+   A caixa de texto e as 3 acoes da miniatura somem (o chat ja tem as suas).
+   ========================================================================= */
+body.mode-full .mini-assistant-overlay { padding: 12px; }
+body.mode-full .mini-capsule-card { height: 58px; overflow: hidden; }
+body.mode-full .mini-capsule-body,
+body.mode-full .mini-review-preview { display: none !important; }
+body.mode-full .mini-capsule-header { border-bottom: 0 !important; height: 56px; }
+body.mode-full .side-chat-drawer {
+  top: 82px !important;
+  left: 116px !important;
+  right: 12px !important;
+  bottom: 12px !important;
+  width: auto !important;
+  max-width: none !important;
+}
+/* Conteudo com largura de leitura, centralizado */
+body.mode-full .side-chat-header,
+body.mode-full .side-chat-params,
+body.mode-full .side-chat-messages,
+body.mode-full .side-chat-input-bar {
+  padding-left: max(24px, calc((100% - 960px) / 2)) !important;
+  padding-right: max(24px, calc((100% - 960px) / 2)) !important;
+}
+body.mode-full .side-scroll-bottom-btn { right: max(24px, calc((100% - 960px) / 2)); }
+body.mode-full .kn-home-hello strong { font-size: 30px; }
+
+/* Ajustes gerais vistos na tela cheia */
+.kn-home-grid { align-items: start; }
+.mini-route-btn, .route-btn { font-weight: 500 !important; }
+.mini-route-btn[aria-pressed="true"], .route-btn[aria-pressed="true"] { font-weight: 600 !important; }
+.side-chat-tag, .side-chat-title, .mini-tag { font-weight: 600 !important; }
+.side-scroll-bottom-btn {
+  border: 1px solid var(--kn-line-2) !important;
+  background: var(--kn-panel) !important;
+  color: var(--kn-text) !important;
+  font-weight: 500 !important;
+  min-height: 36px;
+  padding: 0 14px !important;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+.mini-more > summary, .side-more > summary {
+  display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px;
+  border-radius: var(--kn-r-ctl); border: 1px solid var(--kn-line-2); background: transparent !important;
+  color: var(--kn-text-2) !important; font-weight: 500; cursor: pointer;
+}
+
+/* Pegadores de tamanho nas bordas do chat (janela sem moldura do Windows) */
+.kn-grip { position: absolute; z-index: 6; }
+.kn-grip-l, .kn-grip-r { top: 12px; bottom: 16px; width: 8px; cursor: ew-resize; }
+.kn-grip-l { left: -2px; }
+.kn-grip-r { right: -2px; }
+.kn-grip-b { left: 16px; right: 16px; bottom: -2px; height: 8px; cursor: ns-resize; }
+.kn-grip-bl, .kn-grip-br { bottom: -2px; width: 18px; height: 18px; }
+.kn-grip-bl { left: -2px; cursor: nesw-resize; }
+.kn-grip-br { right: -2px; cursor: nwse-resize; }
+.kn-grip-br::after, .kn-grip-bl::after {
+  content: ""; position: absolute; bottom: 6px; width: 8px; height: 8px;
+  border-bottom: 2px solid var(--kn-line-2);
+}
+.kn-grip-br::after { right: 6px; border-right: 2px solid var(--kn-line-2); border-bottom-right-radius: 3px; }
+.kn-grip-bl::after { left: 6px; border-left: 2px solid var(--kn-line-2); border-bottom-left-radius: 3px; }
+.kn-grip:hover::after { border-color: var(--kn-cyan-hi); }
+.kn-grip-l:hover, .kn-grip-r:hover, .kn-grip-b:hover { background: rgba(115, 243, 255, 0.18); border-radius: 4px; }
+body.kn-resizing, body.kn-resizing * { user-select: none !important; }
+body.mode-full .kn-grip, body.mode-bar .kn-grip { display: none; }

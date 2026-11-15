@@ -310,7 +310,7 @@ function startMiniDrag() {
   }, 30000);
 }
 
-function resizeMiniWindow({ width, height } = {}) {
+function resizeMiniWindow({ width, height, keepRight = false } = {}) {
   if (!mainWindow || typeof width !== 'number' || typeof height !== 'number') return;
   if (windowMode !== 'normal') return;
   if (miniSnapTimer) {
@@ -327,7 +327,9 @@ function resizeMiniWindow({ width, height } = {}) {
     mainWindow.setBounds(cornerBounds(saved.corner, { width: w, height: h }, wa));
     return;
   }
-  const x = Math.max(wa.x, Math.min(b.x, wa.x + wa.width - w));
+  // Arrastando a borda esquerda, a borda direita fica parada
+  const baseX = keepRight ? b.x + b.width - w : b.x;
+  const x = Math.max(wa.x, Math.min(baseX, wa.x + wa.width - w));
   const y = Math.max(wa.y, Math.min(b.y, wa.y + wa.height - h));
   mainWindow.setBounds({ x, y, width: w, height: h });
 }

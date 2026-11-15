@@ -207,6 +207,13 @@ class ConfigManager {
     }
     rootData.ui.largeText = Boolean(rootData.ui.largeText);
     rootData.ui.showCharts = rootData.ui.showCharts !== false;
+    // Tamanho do chat escolhido arrastando a borda (some se invalido)
+    if ('chatSize' in rootData.ui) {
+      const cs = rootData.ui.chatSize;
+      const ok = cs && Number.isFinite(cs.width) && Number.isFinite(cs.height) && cs.width >= 400 && cs.height >= 220;
+      if (ok) rootData.ui.chatSize = { width: Math.round(Math.min(cs.width, 4000)), height: Math.round(Math.min(cs.height, 3000)) };
+      else delete rootData.ui.chatSize;
+    }
     const corner = rootData.ui.miniCorner;
     if (!corner || typeof corner !== 'object' || !['tl', 'tr', 'bl', 'br'].includes(corner.corner)) {
       rootData.ui.miniCorner = null;

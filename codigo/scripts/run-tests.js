@@ -958,6 +958,23 @@ async function main() {
     const emoji = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
     [html, theme, view].forEach((t) => assert.ok(!emoji.test(t), 'emoji proibido'));
   });
+  await runCase('Visual', 'V9', 'chat redimensionavel pela borda e tamanho escolhido salvo', () => {
+    const html = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'index.html'), 'utf8');
+    const appJs = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'js', 'app.js'), 'utf8');
+    const mainJs = fs.readFileSync(path.join(CODE_DIR, 'src', 'main', 'main.js'), 'utf8');
+    ['data-grip="l"', 'data-grip="r"', 'data-grip="b"', 'data-grip="bl"', 'data-grip="br"'].forEach((g) => assert.ok(html.includes(g), `faltou ${g}`));
+    assert.ok(appJs.includes('chatSize') && appJs.includes('dblclick'), 'tamanho salvo e duplo clique');
+    assert.ok(/keepRight \? b\.x \+ b\.width - w/.test(mainJs), 'borda direita parada ao puxar pela esquerda');
+    const tmpCfgDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kn-cs-'));
+    const cfgPath = path.join(tmpCfgDir, 'mpe.config.json');
+    fs.writeFileSync(cfgPath, JSON.stringify({ ui: { chatSize: { width: 900, height: 600 } } }));
+    const cmA = new ConfigManager(tmpCfgDir, tmpCfgDir);
+    assert.deepStrictEqual(cmA.get().ui.chatSize, { width: 900, height: 600 });
+    fs.writeFileSync(cfgPath, JSON.stringify({ ui: { chatSize: { width: 'x', height: 10 } } }));
+    const cmB = new ConfigManager(tmpCfgDir, tmpCfgDir);
+    assert.ok(!('chatSize' in cmB.get().ui), 'tamanho invalido descartado');
+    fs.rmSync(tmpCfgDir, { recursive: true, force: true });
+  });
   //@@ROTAS_NEXT@@
 
   const passed = results.filter((r) => r.status === 'PASS').length;

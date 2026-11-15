@@ -580,19 +580,91 @@
       const hasOpenModal = document.querySelectorAll('.modal-backdrop:not(.hidden)').length > 0;
       // Altura do chat: 546px (626px com comandos), reduzida para a janela caber na tela, inclusive com letras grandes.
       let drawerH = cmdsOpen ? 626 : 546;
+      const userSize = (currentConfig && currentConfig.ui && currentConfig.ui.chatSize) || null;
+      const liveSize = window.__knLiveChatSize || null;
+      const chosen = liveSize || userSize;
+      if (chosen && drawerOpen) drawerH = Math.round(chosen.height / zoom) + (cmdsOpen ? 80 : 0);
       const availH = (window.screen && window.screen.availHeight) || 0;
       if (availH > 0) {
         const maxDrawer = Math.floor((availH - 8 - cardH - 16) / zoom) - 14;
         drawerH = Math.max(220, Math.min(drawerH, maxDrawer));
       }
       document.documentElement.style.setProperty('--side-drawer-h', `${drawerH}px`);
-      const width = hasOpenModal ? Math.round(820 * zoom) : cardW + 16;
+      const availW = (window.screen && window.screen.availWidth) || 4000;
+      const width = hasOpenModal
+        ? Math.round(820 * zoom)
+        : chosen && drawerOpen
+        ? Math.min(availW, Math.max(cardW + 16, Math.round(chosen.width)))
+        : cardW + 16;
       const height = hasOpenModal
         ? Math.round(660 * zoom)
         : cardH + 16 + (drawerOpen ? Math.round((drawerH + 14) * zoom) : 0);
-      window.mpeApi.miniResize({ width, height });
+      window.mpeApi.miniResize({ width, height, keepRight: Boolean(window.__knLiveChatSize && window.__knKeepRight) });
     }
     syncMiniWindowSizeRef = syncMiniWindowSize;
+
+    // Pegadores nas bordas do chat: arrastar muda o tamanho; duplo clique volta ao automatico.
+    (function setupChatGrips() {
+      const drawer = document.getElementById('side-chat-drawer');
+      if (!drawer) return;
+      // Os pegadores ficam presos a borda da janela do chat inteira
+      drawer.querySelectorAll('.kn-grip').forEach((g) => drawer.appendChild(g));
+      let drag = null;
+      let raf = 0;
+      const apply = () => {
+        raf = 0;
+        syncMiniWindowSize();
+      };
+      drawer.querySelectorAll('.kn-grip').forEach((grip) => {
+        grip.addEventListener('pointerdown', (e) => {
+          if (e.button !== 0) return;
+          e.preventDefault();
+          const rect = drawer.getBoundingClientRect();
+          const zoom = document.body.classList.contains('large-text') ? 1.25 : 1;
+          drag = { kind: grip.dataset.grip, x: e.screenX, y: e.screenY, w: window.outerWidth, h: rect.height * zoom };
+          grip.setPointerCapture(e.pointerId);
+          document.body.classList.add('kn-resizing');
+        });
+        grip.addEventListener('pointermove', (e) => {
+          if (!drag) return;
+          const dx = e.screenX - drag.x;
+          const dy = e.screenY - drag.y;
+          const k = drag.kind;
+          let w = drag.w;
+          let h = drag.h;
+          if (k === 'r' || k === 'br') w = drag.w + dx;
+          if (k === 'l' || k === 'bl') w = drag.w - dx;
+          if (k === 'b' || k === 'bl' || k === 'br') h = drag.h + dy;
+          window.__knLiveChatSize = { width: Math.max(576, Math.round(w)), height: Math.max(260, Math.round(h)) };
+          window.__knKeepRight = k === 'l' || k === 'bl';
+          if (!raf) raf = requestAnimationFrame(apply);
+        });
+        const end = async () => {
+          if (!drag) return;
+          drag = null;
+          document.body.classList.remove('kn-resizing');
+          const size = window.__knLiveChatSize;
+          window.__knLiveChatSize = null;
+          if (!size || !currentConfig) return;
+          currentConfig.ui = Object.assign({}, currentConfig.ui || {}, { chatSize: size });
+          syncMiniWindowSize();
+          try {
+            await window.mpeApi.saveConfig(currentConfig);
+          } catch (_) {}
+        };
+        grip.addEventListener('pointerup', end);
+        grip.addEventListener('pointercancel', end);
+        grip.addEventListener('dblclick', async () => {
+          if (!currentConfig || !currentConfig.ui) return;
+          delete currentConfig.ui.chatSize;
+          syncMiniWindowSize();
+          try {
+            await window.mpeApi.saveConfig(currentConfig);
+          } catch (_) {}
+          showToast('Tamanho do chat voltou ao automatico.');
+        });
+      });
+    })();
 
     function setupMiniAssistant() {
       const overlay = document.getElementById('mini-assistant-overlay');
@@ -1680,7 +1752,7 @@
             const dot = el('span', 'kn-dot');
             dot.style.background = KN_ROUTE_COLOR[r.route] || KN_ROUTE_COLOR.ia;
             b.appendChild(dot);
-            b.appendChild(el('span', '', r.text));
+            b.appendChild(el('span', 'kn-home-txt', r.text));
             b.appendChild(el('span', 'kn-big-lbl', knDayLabel(r.day)));
             b.addEventListener('click', () => knUsePrompt(r.text, r.route));
             list.appendChild(b);
