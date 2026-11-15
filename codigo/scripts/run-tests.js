@@ -1029,7 +1029,7 @@ async function main() {
     assert.ok(/requestWindowMode\('mascote'\)/.test(appJs) && /kn-holding/.test(appJs), 'segurar no mascote');
     assert.ok(/kn-busy[\s\S]{0,200}knEnterBubbleRef\(\)/.test(appJs), 'ESC durante pergunta vai para o mascote');
     assert.ok(/function enterBubble/.test(mainJs) && /mode === 'mascote'/.test(mainJs), 'modo mascote no processo principal');
-    assert.ok(/clearCache\(\)/.test(mainJs) && /CommandOrControl\+Shift\+Q/.test(mainJs), 'fechar totalmente limpando o cache');
+    assert.ok(/clearCache\(\)/.test(mainJs) && /CommandOrControl\+Shift\+Q/.test(mainJs) && /Shift\+Alt\+Escape/.test(mainJs), 'fechar totalmente limpando o cache');
   });
   //@@ROTAS_NEXT@@
 

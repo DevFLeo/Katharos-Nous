@@ -652,7 +652,10 @@ function createWindow() {
   });
 
   mainWindow.webContents.on('before-input-event', (_event, input) => {
-    if (input.type === 'keyDown' && input.control && input.shift && (input.key === 'Escape' || String(input.key).toLowerCase() === 'q')) {
+    const closeAll =
+      (input.control && input.shift && (input.key === 'Escape' || String(input.key).toLowerCase() === 'q')) ||
+      (input.shift && input.alt && input.key === 'Escape');
+    if (input.type === 'keyDown' && closeAll) {
       quitAndClearCache();
       return;
     }
@@ -729,11 +732,14 @@ function setupHooksAndShortcuts() {
 
   // Fechar totalmente de qualquer tela. Ctrl+Shift+Esc e do Windows (Gerenciador de Tarefas),
   // por isso o atalho global e Ctrl+Shift+Q; com a janela em foco, Ctrl+Shift+Esc tambem vale se chegar ate o app.
-  try {
-    globalShortcut.register('CommandOrControl+Shift+Q', () => quitAndClearCache());
-  } catch (err) {
-    console.warn('[Katharos Shortcut] Nao foi possivel registrar Ctrl+Shift+Q:', err.message);
-  }
+  ['Shift+Alt+Escape', 'CommandOrControl+Shift+Q'].forEach((accel) => {
+    try {
+      const ok = globalShortcut.register(accel, () => quitAndClearCache());
+      logDebug(`[SHORTCUT] fechar totalmente ${accel} registrado=${ok}`);
+    } catch (err) {
+      console.warn(`[Katharos Shortcut] Nao foi possivel registrar ${accel}:`, err.message);
+    }
+  });
 
   [primaryFallback, secondaryFallback].forEach((accel) => {
     if (!accel) return;
