@@ -106,6 +106,86 @@
     return row;
   }
 
+  function balance(spec) {
+    const wrap = el('div', 'kn-balance');
+    const total = spec.items.reduce((s, i) => s + i.value, 0) || 1;
+    const bar = el('div', 'kn-balance-bar');
+    bar.setAttribute('role', 'img');
+    bar.setAttribute('aria-label', K().describe(spec));
+    spec.items.forEach((i) => {
+      const seg = el('span', `kn-balance-seg tone-${i.tone}`);
+      seg.style.width = `${(i.value / total) * 100}%`;
+      bar.appendChild(seg);
+    });
+    wrap.appendChild(bar);
+    const legend = el('div', 'kn-balance-legend');
+    spec.items.forEach((i) => {
+      const l = el('span', 'kn-trio-lbl');
+      l.appendChild(el('span', `kn-dot tone-${i.tone}`));
+      l.appendChild(document.createTextNode(`${i.label} ${fmt(spec, i.value)}`));
+      legend.appendChild(l);
+    });
+    wrap.appendChild(legend);
+    return wrap;
+  }
+
+  function calendar(spec) {
+    const grid = el('div', 'kn-cal');
+    grid.setAttribute('role', 'img');
+    grid.setAttribute('aria-label', `${spec.title}. ` + spec.items.filter((i) => i.value > 0).map((i) => `dia ${i.label} ${fmt(spec, i.value)}`).join(', '));
+    ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].forEach((d) => grid.appendChild(el('span', 'kn-cal-head', d)));
+    for (let i = 0; i < (spec.firstWeekday || 0); i++) grid.appendChild(el('span', 'kn-cal-empty'));
+    spec.items.forEach((i) => {
+      const c = el('span', `kn-cal-day lvl-${i.level}`, i.label);
+      c.title = i.value ? `dia ${i.label}: ${fmt(spec, i.value)}` : `dia ${i.label}: sem gastos`;
+      grid.appendChild(c);
+    });
+    return grid;
+  }
+
+  function timeline(spec) {
+    const wrap = el('div', 'kn-tl');
+    wrap.setAttribute('role', 'img');
+    wrap.setAttribute('aria-label', spec.items.map((i) => `${i.label}, ${i.from} a ${i.open ? 'hoje' : i.to}`).join('; '));
+    const span = Math.max(1, spec.end - spec.start);
+    spec.items.forEach((i, idx) => {
+      const row = el('div', 'kn-tl-row');
+      row.appendChild(el('span', 'kn-tl-lbl', `${i.label} · ${i.from}–${i.open ? 'hoje' : i.to}`));
+      const track = el('span', 'kn-rank-track');
+      const fill = el('span', 'kn-rank-fill' + (idx === spec.items.length - 1 ? ' is-top' : ''));
+      fill.style.marginLeft = `${((i.from - spec.start) / span) * 100}%`;
+      fill.style.width = `${Math.max(3, ((i.to - i.from) / span) * 100)}%`;
+      track.appendChild(fill);
+      row.appendChild(track);
+      wrap.appendChild(row);
+    });
+    const ends = el('div', 'kn-tl-ends');
+    ends.appendChild(el('span', '', String(spec.start)));
+    ends.appendChild(el('span', '', spec.items.some((i) => i.open) ? 'hoje' : String(spec.end)));
+    wrap.appendChild(ends);
+    return wrap;
+  }
+
+  // "Quer ver de outro jeito?" com uma pergunta e botoes de resposta
+  function renderViewAsk(options, onPick) {
+    if (!options || !options.length) return null;
+    const box = el('div', 'kn-ask');
+    box.appendChild(el('span', 'kn-ask-q', 'Quer ver de outro jeito?'));
+    const row = el('div', 'kn-ask-row');
+    options.forEach((o) => {
+      const b = el('button', 'kn-chip-btn', o.label);
+      b.type = 'button';
+      b.addEventListener('click', () => {
+        b.remove();
+        if (!row.children.length) box.remove();
+        onPick(o.id);
+      });
+      row.appendChild(b);
+    });
+    box.appendChild(row);
+    return box;
+  }
+
   function renderInsightCard(spec, opts) {
     if (!spec) return null;
     const card = el('div', 'kn-insight');
@@ -119,6 +199,9 @@
     if (spec.kind === 'cols') box.appendChild(cols(spec));
     else if (spec.kind === 'rank') box.appendChild(rank(spec));
     else if (spec.kind === 'line') box.appendChild(line(spec));
+    else if (spec.kind === 'balance') box.appendChild(balance(spec));
+    else if (spec.kind === 'calendar') box.appendChild(calendar(spec));
+    else if (spec.kind === 'timeline') box.appendChild(timeline(spec));
     card.appendChild(box);
     card.appendChild(sourceRow(spec, opts));
     return card;
@@ -182,5 +265,5 @@
     return line({ title: 'Saldo', money: true, items: values.map((v) => ({ value: v })) }, 60);
   }
 
-  root.KnInsightsView = { renderInsightCard, renderReport, sparkline, el };
+  root.KnInsightsView = { renderInsightCard, renderReport, renderViewAsk, sparkline, el };
 })(typeof self !== 'undefined' ? self : this);

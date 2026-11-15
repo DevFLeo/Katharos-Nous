@@ -975,6 +975,62 @@ async function main() {
     assert.ok(!('chatSize' in cmB.get().ui), 'tamanho invalido descartado');
     fs.rmSync(tmpCfgDir, { recursive: true, force: true });
   });
+  await runCase('Visual', 'V10', 'trazer arquivo: pasta inteira por tipo e texto colado reconhecido', () => {
+    const importHelper = require('../src/main/importHelper');
+    const tmpF = fs.mkdtempSync(path.join(os.tmpdir(), 'kn-imp-'));
+    fs.writeFileSync(path.join(tmpF, 'extrato.ofx'), '<OFX><STMTTRN><DTPOSTED>20261105<TRNAMT>-10.00<MEMO>X</STMTTRN></OFX>');
+    fs.mkdirSync(path.join(tmpF, 'sub'));
+    fs.writeFileSync(path.join(tmpF, 'sub', 'curriculo.md'), 'Experiencia profissional\nFormacao academica');
+    fs.writeFileSync(path.join(tmpF, 'foto.heic'), 'x');
+    const scan = importHelper.scanFolder(tmpF);
+    assert.strictEqual(scan.files.length, 2);
+    assert.strictEqual(scan.skipped, 1);
+    assert.deepStrictEqual(scan.byType.map((t) => t.label).sort(), ['Currículos', 'Extratos']);
+    fs.rmSync(tmpF, { recursive: true, force: true });
+    const rec = importHelper.recognizeText('<OFX><STMTTRN><DTPOSTED>20261105<TRNAMT>-1200.00<MEMO>ALUGUEL</STMTTRN><STMTTRN><DTPOSTED>20261130<TRNAMT>300<MEMO>PIX</STMTTRN>');
+    assert.strictEqual(rec.category, 'Extratos');
+    assert.ok(/2 lançamentos/.test(rec.detail));
+    assert.strictEqual(importHelper.recognizeText('lembrar de comprar pao amanha cedo'), null);
+    assert.strictEqual(importHelper.isSupported('a.heic'), false);
+  });
+
+  await runCase('Visual', 'V11', 'outros jeitos de ver: entrou x saiu, calendario e linha do tempo do curriculo', () => {
+    const opts = KnInsights.viewOptions('qual meu saldo?', [finDoc]).map((o) => o.id);
+    assert.deepStrictEqual(opts, ['balance', 'calendar', 'gastos']);
+    const bal = KnInsights.buildView('balance', [finDoc]);
+    assert.strictEqual(bal.big, 'R$ 1.335,40');
+    const cal = KnInsights.buildView('calendar', [finDoc]);
+    assert.strictEqual(cal.items.length, 30);
+    assert.strictEqual(cal.items[19].level, 3);
+    const cv = { id: 'cv', category: 'Curriculos', createdAt: '2026-11-01T00:00:00Z', textContent: 'Cargo A | 2018 - 2020\nCargo B\n2020 – 2023\nCargo C, 2023 - atual' };
+    assert.deepStrictEqual(KnInsights.viewOptions('/curriculo minhas experiencias', [cv]).map((o) => o.id), ['timeline']);
+    const tl = KnInsights.buildView('timeline', [cv]);
+    assert.deepStrictEqual(tl.items.map((i) => i.label), ['Cargo A', 'Cargo B', 'Cargo C']);
+    assert.strictEqual(KnInsights.viewOptions('guarda isso', [finDoc], { route: 'nota' }).length, 0);
+  });
+
+  await runCase('Visual', 'V12', 'conversas trazem a resposta junto da pergunta', () => {
+    const tmpH = fs.mkdtempSync(path.join(os.tmpdir(), 'kn-hist2-'));
+    const hs = new ChatHistoryStore(tmpH);
+    hs.append({ role: 'user', route: 'local', text: 'multa contrato', at: new Date(2026, 10, 14, 10, 0) });
+    hs.append({ role: 'assistant', route: 'local', text: 'A multa e de 3 alugueis', at: new Date(2026, 10, 14, 10, 0) });
+    hs.append({ role: 'user', route: 'ia', text: 'sem resposta', at: new Date(2026, 10, 14, 11, 0) });
+    const list = hs.recentQuestions(7, 10);
+    assert.strictEqual(list[1].answer, 'A multa e de 3 alugueis');
+    assert.strictEqual(list[0].answer, '');
+    fs.rmSync(tmpH, { recursive: true, force: true });
+  });
+
+  await runCase('Visual', 'V13', 'segurar no mascote, ESC durante pergunta e fechar totalmente', () => {
+    const html = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'index.html'), 'utf8');
+    const appJs = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'js', 'app.js'), 'utf8');
+    const mainJs = fs.readFileSync(path.join(CODE_DIR, 'src', 'main', 'main.js'), 'utf8');
+    ['id="kn-bubble-ui"', 'data-bubble-route="ia"', 'data-bubble-route="local"', 'data-bubble-route="nota"', 'id="kn-bubble-say"', 'id="kn-history-bydoc"', 'data-hist-route="nota"', 'id="btn-kn-import-folder"', 'id="kn-paste-hint"'].forEach((id) => assert.ok(html.includes(id), `faltou ${id}`));
+    assert.ok(/requestWindowMode\('mascote'\)/.test(appJs) && /kn-holding/.test(appJs), 'segurar no mascote');
+    assert.ok(/kn-busy[\s\S]{0,200}knEnterBubbleRef\(\)/.test(appJs), 'ESC durante pergunta vai para o mascote');
+    assert.ok(/function enterBubble/.test(mainJs) && /mode === 'mascote'/.test(mainJs), 'modo mascote no processo principal');
+    assert.ok(/clearCache\(\)/.test(mainJs) && /CommandOrControl\+Shift\+Q/.test(mainJs), 'fechar totalmente limpando o cache');
+  });
   //@@ROTAS_NEXT@@
 
   const passed = results.filter((r) => r.status === 'PASS').length;

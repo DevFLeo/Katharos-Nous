@@ -105,9 +105,23 @@ class ChatHistoryStore {
   recentQuestions(maxDays = 7, maxItems = 30) {
     const out = [];
     for (const day of this.listDays().slice(0, Math.max(1, maxDays))) {
-      const entries = this.readDay(day).filter((e) => e.who === 'voce').reverse();
-      for (const e of entries) {
-        out.push({ day, time: e.time, route: e.route, text: e.text });
+      const all = this.readDay(day);
+      const pairs = [];
+      all.forEach((e, i) => {
+        if (e.who !== 'voce') return;
+        // A resposta e a primeira fala do Katharos depois da pergunta (antes da proxima pergunta)
+        let answer = '';
+        for (let j = i + 1; j < all.length; j++) {
+          if (all[j].who === 'voce') break;
+          if (all[j].who === 'katharos') {
+            answer = all[j].text;
+            break;
+          }
+        }
+        pairs.push({ day, time: e.time, route: e.route, text: e.text, answer });
+      });
+      for (const p of pairs.reverse()) {
+        out.push(p);
         if (out.length >= maxItems) return out;
       }
     }

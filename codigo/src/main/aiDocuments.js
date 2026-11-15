@@ -981,6 +981,7 @@ class AiDocuments {
 }
 
 AiDocuments.CATEGORIES = CATEGORIES;
+AiDocuments.AUTO_INDEX_EXTENSIONS = AUTO_INDEX_EXTENSIONS;
 AiDocuments.parseFinancialDocument = parseFinancialDocument;
 AiDocuments.formatBRL = formatBRL;
 AiDocuments.detectCategory = detectCategory;

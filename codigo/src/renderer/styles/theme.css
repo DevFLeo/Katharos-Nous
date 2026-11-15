@@ -430,3 +430,120 @@ body.mode-full .kn-home-hello strong { font-size: 30px; }
 .kn-grip-l:hover, .kn-grip-r:hover, .kn-grip-b:hover { background: rgba(115, 243, 255, 0.18); border-radius: 4px; }
 body.kn-resizing, body.kn-resizing * { user-select: none !important; }
 body.mode-full .kn-grip, body.mode-bar .kn-grip { display: none; }
+
+/* Trazer arquivo: fila, pasta inteira e dica ao colar */
+#btn-kn-import-folder { margin: 0 0 10px; }
+.kn-import-queue { display: flex; flex-direction: column; gap: 10px; margin: 0 0 12px; padding: 12px 14px; border-radius: var(--kn-r-card); background: var(--kn-panel); border: 1px solid var(--kn-line); }
+.kn-q-row { display: flex; flex-direction: column; gap: 6px; }
+.kn-q-top { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.kn-q-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--kn-text); }
+.kn-q-state { font-size: 13px; color: var(--kn-text-2); white-space: nowrap; }
+.kn-q-state.is-ok { color: var(--kn-in); }
+.kn-q-state.is-busy { color: var(--kn-cyan-hi); }
+.kn-q-state.is-error { color: var(--kn-out); }
+.kn-q-track { height: 6px; border-radius: 999px; background: var(--kn-raise); overflow: hidden; }
+.kn-q-fill { display: block; height: 6px; border-radius: 999px; background: var(--kn-cyan); transition: width 0.3s ease; }
+.kn-q-fill.is-ok { background: var(--kn-in); }
+.kn-q-fill.is-error { background: var(--kn-out); }
+#kn-folder-summary { margin: 0 0 12px; }
+.kn-paste-hint { margin-top: 8px; border-color: #2E5A40; background: #0F2219; }
+.kn-paste-hint strong { font-size: 15px; font-weight: 500; color: var(--kn-text); }
+
+/* Outros jeitos de ver: pergunta abaixo da resposta */
+.kn-ask { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.kn-ask-q { font-size: 14px; color: var(--kn-text-2); }
+.kn-ask-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.kn-chip-btn {
+  min-height: 40px; padding: 0 14px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--kn-line-2); background: var(--kn-panel); color: var(--kn-text);
+  font: inherit; font-size: 14px;
+}
+.kn-chip-btn:hover { border-color: var(--kn-cyan-hi); background: var(--kn-cyan-soft); }
+.kn-balance { display: flex; flex-direction: column; gap: 8px; }
+.kn-balance-bar { display: flex; height: 20px; border-radius: 999px; overflow: hidden; background: var(--kn-raise); }
+.kn-balance-seg.tone-in { background: var(--kn-in); }
+.kn-balance-seg.tone-out { background: var(--kn-out); }
+.kn-balance-legend { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.kn-cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.kn-cal-head { font-size: 11px; color: var(--kn-text-2); text-align: center; }
+.kn-cal-day { height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--kn-text-2); background: var(--kn-raise); }
+.kn-cal-day.lvl-1 { background: #1E4A66; color: var(--kn-text); }
+.kn-cal-day.lvl-2 { background: var(--kn-cyan); color: #03161C; }
+.kn-cal-day.lvl-3 { background: var(--kn-cyan-hi); color: #03161C; font-weight: 600; }
+.kn-tl { display: flex; flex-direction: column; gap: 10px; }
+.kn-tl-row { display: flex; flex-direction: column; gap: 4px; }
+.kn-tl-lbl { font-size: 13px; color: var(--kn-text); }
+.kn-tl-ends { display: flex; justify-content: space-between; font-size: 12px; color: var(--kn-text-2); }
+
+/* Conversas: filtro por acao, agrupar por documento e busca com trecho */
+.kn-hist-tools { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin: 10px 0 4px; }
+.kn-hist-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.kn-hist-chips .kn-chip-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; }
+.kn-hist-chips .kn-chip-btn[aria-checked="true"] { border-color: var(--kn-cyan-hi); background: var(--kn-cyan-soft); }
+.kn-hist-group { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--kn-text-2); min-height: 36px; cursor: pointer; }
+.kn-hist-group input { width: 18px; height: 18px; accent-color: var(--kn-cyan-hi); }
+.kn-hist-ans { font-size: 13px; color: var(--kn-text-2); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.kn-mark { background: rgba(115, 243, 255, 0.18); color: #B8FAFF; border-radius: 4px; padding: 0 2px; }
+
+/* Tela inicial: sugestoes, mural de pastas e resumo do dia */
+.kn-home-sugg { display: flex; flex-direction: column; gap: 8px; }
+.kn-mural { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.kn-mural-tile { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--kn-bg); border: 1px solid var(--kn-line); min-width: 0; }
+.kn-mural-n { font-size: 20px; font-weight: 300; color: var(--kn-text); }
+.kn-home-card .kn-btn-outline { align-self: flex-start; }
+.kn-home-time { width: 42px; flex-shrink: 0; }
+
+/* =========================================================================
+   MODO MASCOTE (segurar no mascote ou ESC durante uma pergunta)
+   Janela pequena: so o mascote; as 3 acoes aparecem ao passar o mouse;
+   anel ciano enche enquanto processa; balao mostra o comeco da resposta.
+   ========================================================================= */
+.kn-bubble-ui { display: none; }
+body.mode-bubble { background: transparent !important; }
+body.mode-bubble .mini-capsule-card,
+body.mode-bubble .side-chat-drawer,
+body.mode-bubble .kataros-bar { display: none !important; }
+body.mode-bubble .mini-assistant-overlay { inset: 0; padding: 0; }
+body.mode-bubble .mini-sci-hud { position: absolute; top: 76px; right: 70px; width: auto !important; max-width: none !important; animation: none; }
+body.mode-bubble.bubble-left .mini-sci-hud { right: auto; left: 70px; }
+body.mode-bubble .kn-bubble-ui { display: block; position: absolute; inset: 0; pointer-events: none; }
+body.mode-bubble .mini-node-ring { position: relative; z-index: 2; }
+
+.kn-bubble-ring { position: absolute; width: 150px; height: 150px; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-90deg); }
+.kn-ring-bg { fill: none; stroke: transparent; stroke-width: 5; }
+.kn-ring-fg { fill: none; stroke: var(--kn-cyan-hi); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 0 440; opacity: 0; }
+body.kn-busy .kn-ring-fg { opacity: 1; }
+body.kn-busy .kn-ring-bg { stroke: var(--kn-line); }
+body.kn-busy .kn-ring-fg { animation: kn-ring-fill 2.4s ease-in-out infinite; }
+@keyframes kn-ring-fill {
+  0% { stroke-dasharray: 0 440; }
+  70% { stroke-dasharray: 400 440; }
+  100% { stroke-dasharray: 440 440; opacity: 0.3; }
+}
+
+.kn-bubble-btn {
+  position: absolute; width: 48px; height: 48px; border-radius: 999px; padding: 0;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  border: 1px solid var(--kn-line-2); background: var(--kn-panel); color: var(--route-color, var(--kn-cyan-hi));
+  opacity: 0; transform: scale(0.8); transition: opacity 0.15s ease, transform 0.15s ease; pointer-events: auto; z-index: 3;
+}
+.kn-bubble-btn svg { width: 20px; height: 20px; }
+.kn-b-ask { --route-color: var(--kn-ask); left: 17px; top: -62px; }
+.kn-b-find { --route-color: var(--kn-find); left: -60px; top: 104px; }
+.kn-b-keep { --route-color: var(--kn-keep); right: -60px; top: 104px; }
+body.mode-bubble .mini-sci-hud:hover .kn-bubble-btn,
+body.mode-bubble .mini-sci-hud:focus-within .kn-bubble-btn { opacity: 1; transform: scale(1); }
+.kn-bubble-btn:hover { border-color: var(--route-color); }
+body.mode-bubble .kn-bubble-ui { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+
+.kn-bubble-say {
+  position: absolute; top: -58px; right: calc(100% + 10px); width: 200px; max-height: 128px; overflow: hidden;
+  padding: 10px 12px; border-radius: 16px 4px 16px 16px; text-align: left; cursor: pointer; pointer-events: auto;
+  background: var(--kn-panel); border: 1px solid var(--kn-line-2); color: var(--kn-text);
+  font: inherit; font-size: 13px; line-height: 1.45; box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45); z-index: 4;
+}
+.kn-bubble-say.is-answer { border-color: #2E5A40; background: #0F2219; }
+body.mode-bubble.bubble-left .kn-bubble-say { right: auto; left: calc(100% + 10px); border-radius: 4px 16px 16px 16px; }
+
+/* Segurando o mascote: o anel cresce para mostrar que vai minimizar */
+.mini-node-ring.kn-holding { transition: box-shadow 0.6s ease, transform 0.6s ease; box-shadow: 0 0 0 6px rgba(115, 243, 255, 0.35), 0 0 22px rgba(229, 184, 75, 0.5) !important; transform: scale(0.96); }

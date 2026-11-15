@@ -238,5 +238,122 @@
     };
   }
 
-  return { norm, formatBRL, detectIntent, isFinancialIntent, pickFinancialDoc, buildInsight, buildReport, homeSummary, describe };
+  // ===== Outros jeitos de ver (oferecidos como pergunta abaixo da resposta) =====
+  function buildBalanceBar(doc) {
+    const fin = doc && doc.parsedFinancial;
+    if (!fin || !fin.isFinancial || !(fin.totalCredits || fin.totalDebits)) return null;
+    const net = fin.totalCredits - fin.totalDebits;
+    return {
+      kind: 'balance', money: true, title: 'Entrou × saiu',
+      big: formatBRL(Math.abs(net)), bigLabel: net >= 0 ? 'sobrou no período' : 'faltou no período',
+      items: [{ label: 'Entrou', value: fin.totalCredits, tone: 'in' }, { label: 'Saiu', value: fin.totalDebits, tone: 'out' }],
+      source: sourceName(doc), docId: doc.id, financial: true
+    };
+  }
+
+  function buildCalendar(doc) {
+    const fin = doc && doc.parsedFinancial;
+    if (!fin || !fin.isFinancial) return null;
+    const byDay = new Map();
+    let month = null;
+    fin.entries.filter((e) => e.amount < 0).forEach((e) => {
+      const m = String(e.date || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+      if (!m) return;
+      const key = `${m[3]}-${m[2]}`;
+      if (!month) month = { key, m: Number(m[2]), y: Number(m[3].length === 2 ? `20${m[3]}` : m[3]) };
+      if (key !== month.key) return;
+      const d = Number(m[1]);
+      byDay.set(d, (byDay.get(d) || 0) + Math.abs(e.amount));
+    });
+    if (!month || !byDay.size) return null;
+    const days = new Date(month.y, month.m, 0).getDate();
+    const max = Math.max(...byDay.values());
+    const items = [];
+    for (let d = 1; d <= days; d++) {
+      const v = byDay.get(d) || 0;
+      items.push({ label: String(d), value: v, level: v === 0 ? 0 : Math.max(1, Math.ceil((v / max) * 3)) });
+    }
+    const top = Array.from(byDay).sort((a, b) => b[1] - a[1])[0];
+    const nomes = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+    return {
+      kind: 'calendar', money: true, title: `Gastos por dia em ${nomes[month.m - 1]}: quanto mais claro, mais gastou`,
+      big: formatBRL(top[1]), bigLabel: `dia ${top[0]}, o dia que mais gastou`,
+      items, firstWeekday: new Date(month.y, month.m - 1, 1).getDay(),
+      source: sourceName(doc), docId: doc.id, financial: true
+    };
+  }
+
+  // Linha do tempo a partir do texto do curriculo: linhas com periodo "2018 - 2020" ou "2023 - atual"
+  function buildCvTimeline(doc) {
+    const text = doc && (doc.textContent || doc.summary || '');
+    if (!text) return null;
+    const nowY = new Date().getFullYear();
+    const rx = /((?:19|20)\d{2})\s*(?:-|–|—|a|ate|até)\s*((?:19|20)\d{2}|atual|hoje|presente|o momento|atualmente)/i;
+    const lines = String(text).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const items = [];
+    lines.forEach((line, i) => {
+      const m = line.match(rx);
+      if (!m) return;
+      const from = Number(m[1]);
+      const to = /^\d+$/.test(m[2]) ? Number(m[2]) : nowY;
+      if (to < from || to - from > 50) return;
+      let label = line.replace(m[0], '').replace(/[|·•\-–—,()]+\s*$/, '').replace(/^\s*[|·•\-–—,()]+/, '').trim();
+      if (label.length < 3 && i > 0) label = lines[i - 1];
+      items.push({ label: label.slice(0, 48) || 'Experiência', from, to, open: !/^\d+$/.test(m[2]) });
+    });
+    if (!items.length) return null;
+    items.sort((a, b) => a.from - b.from);
+    const start = items[0].from;
+    const end = Math.max(...items.map((i) => i.to));
+    return {
+      kind: 'timeline', money: false, title: 'Linha do tempo do currículo',
+      big: `${end - start} ${end - start === 1 ? 'ano' : 'anos'}`, bigLabel: `de ${start} até ${items.some((i) => i.open) ? 'hoje' : end}`,
+      items: items.slice(0, 8), start, end, source: sourceName(doc), docId: doc.id
+    };
+  }
+
+  function pickCvDoc(docs) {
+    const cv = (docs || []).filter((d) => d && norm(d.category) === 'curriculos');
+    cv.sort((a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0));
+    return cv[0] || null;
+  }
+
+  function isCvPrompt(prompt) {
+    return /(^\/(curriculo|cv|resume)\b|curriculo|experiencias?\b|trajetoria|formacao)/.test(norm(prompt));
+  }
+
+  /** Opcoes "Quer ver de outro jeito?" para colocar abaixo da resposta. */
+  function viewOptions(prompt, docs, { route, shown } = {}) {
+    if (route === 'nota') return [];
+    const intent = detectIntent(prompt);
+    const out = [];
+    if (isFinancialIntent(intent)) {
+      const doc = pickFinancialDoc(docs);
+      if (doc) {
+        if (shown !== 'balance' && buildBalanceBar(doc)) out.push({ id: 'balance', label: 'Entrou × saiu' });
+        if (buildCalendar(doc)) out.push({ id: 'calendar', label: 'Gastos por dia' });
+        if (intent !== 'gastos' && buildGastos(doc)) out.push({ id: 'gastos', label: 'Maiores gastos' });
+      }
+    } else if (isCvPrompt(prompt)) {
+      const cv = pickCvDoc(docs);
+      if (cv && buildCvTimeline(cv)) out.push({ id: 'timeline', label: 'Linha do tempo' });
+    }
+    return out;
+  }
+
+  function buildView(id, docs) {
+    if (id === 'timeline') return buildCvTimeline(pickCvDoc(docs));
+    const doc = pickFinancialDoc(docs);
+    if (!doc) return null;
+    if (id === 'balance') return buildBalanceBar(doc);
+    if (id === 'calendar') return buildCalendar(doc);
+    if (id === 'gastos') {
+      const g = buildGastos(doc);
+      if (g) Object.assign(g, { source: sourceName(doc), docId: doc.id, financial: true });
+      return g;
+    }
+    return null;
+  }
+
+  return { norm, formatBRL, detectIntent, isFinancialIntent, pickFinancialDoc, buildInsight, buildReport, homeSummary, describe, viewOptions, buildView, buildCalendar, buildBalanceBar, buildCvTimeline };
 });

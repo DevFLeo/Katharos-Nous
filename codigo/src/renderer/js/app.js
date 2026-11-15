@@ -11,6 +11,8 @@
   let sendSideChatMessageRef = async () => {};
   let applyWindowModeRef = () => {};
   let refreshMascotIdleRef = async () => {};
+  let knBubbleSayRef = () => {};
+  let knEnterBubbleRef = () => {};
 
   function applyUiPrefs(cfg) {
     const ui = (cfg && cfg.ui) || {};
@@ -391,11 +393,80 @@
       const titleEl = document.getElementById('ai-doc-title');
       if (titleEl && !titleEl.value.trim()) titleEl.value = p.split(/[\\/]/).pop().replace(/\.[^.]+$/, '');
     }
+
+    // Fila: varios arquivos de uma vez, cada um com o seu estado
+    const knQueue = [];
+    let knQueueRunning = false;
+    function knQueueRender() {
+      const box = document.getElementById('kn-import-queue');
+      if (!box || !window.KnInsightsView) return;
+      const el = window.KnInsightsView.el;
+      box.classList.toggle('hidden', knQueue.length === 0);
+      box.replaceChildren();
+      knQueue.forEach((it) => {
+        const row = el('div', 'kn-q-row');
+        const top = el('div', 'kn-q-top');
+        top.appendChild(el('span', 'kn-q-name', it.name));
+        top.appendChild(el('span', `kn-q-state is-${it.state}`, it.label));
+        row.appendChild(top);
+        const track = el('div', 'kn-q-track');
+        const fill = el('span', `kn-q-fill is-${it.state}`);
+        fill.style.width = it.state === 'wait' ? '0%' : it.state === 'busy' ? '55%' : '100%';
+        track.appendChild(fill);
+        row.appendChild(track);
+        box.appendChild(row);
+      });
+    }
+    async function knQueueAdd(paths) {
+      const list = (paths || []).filter(Boolean);
+      for (const p of list) {
+        const ok = window.mpeApi.isSupportedFile ? await window.mpeApi.isSupportedFile(p) : true;
+        knQueue.push({ path: p, name: p.split(/[\\/]/).pop(), state: ok ? 'wait' : 'error', label: ok ? 'Na fila' : 'Formato não aceito' });
+      }
+      knQueueRender();
+      syncMiniWindowSize();
+      knQueueRun();
+    }
+    async function knQueueRun() {
+      if (knQueueRunning) return;
+      knQueueRunning = true;
+      for (const it of knQueue) {
+        if (it.state !== 'wait') continue;
+        it.state = 'busy';
+        it.label = 'Lendo…';
+        knQueueRender();
+        try {
+          const res = await window.mpeApi.saveDocumentFile({ title: it.name.replace(/\.[^.]+$/, ''), category: 'Auto', text: '', sourceFilePath: it.path });
+          if (res && res.ok && res.document) {
+            it.state = 'ok';
+            it.label = `Guardado em ${res.document.category}`;
+          } else {
+            it.state = 'error';
+            it.label = (res && res.error) || 'Não consegui guardar';
+          }
+        } catch (_) {
+          it.state = 'error';
+          it.label = 'Não consegui guardar';
+        }
+        knQueueRender();
+      }
+      knQueueRunning = false;
+      const done = knQueue.filter((i) => i.state === 'ok').length;
+      if (done) showToast(`${done} ${done === 1 ? 'arquivo guardado' : 'arquivos guardados'}.`);
+      renderImportTypes().catch(() => {});
+    }
+    function knTakeFiles(paths) {
+      const list = (paths || []).filter(Boolean);
+      if (!list.length) return;
+      if (list.length === 1 && knQueue.length === 0) useDroppedPath(list[0]);
+      else knQueueAdd(list);
+    }
+
     const knDrop = document.getElementById('kn-dropzone');
     if (knDrop) {
       const pick = async () => {
-        const picked = window.mpeApi.selectDocumentFile ? await window.mpeApi.selectDocumentFile() : await window.mpeApi.selectFile();
-        useDroppedPath(picked);
+        if (window.mpeApi.selectDocumentFiles) knTakeFiles(await window.mpeApi.selectDocumentFiles());
+        else useDroppedPath(window.mpeApi.selectDocumentFile ? await window.mpeApi.selectDocumentFile() : await window.mpeApi.selectFile());
       };
       knDrop.addEventListener('click', pick);
       knDrop.addEventListener('keydown', (e) => {
@@ -412,11 +483,79 @@
       knDrop.addEventListener('drop', (e) => {
         e.preventDefault();
         knDrop.classList.remove('is-over');
-        const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-        if (!f) return;
-        const p = window.mpeApi.pathForFile ? window.mpeApi.pathForFile(f) : '';
-        if (p) useDroppedPath(p);
-        else showToast('Não consegui ler esse arquivo. Use o botão Arquivo...');
+        const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+        const paths = files.map((f) => (window.mpeApi.pathForFile ? window.mpeApi.pathForFile(f) : '')).filter(Boolean);
+        if (paths.length) knTakeFiles(paths);
+        else if (files.length) showToast('Não consegui ler esse arquivo. Use o botão Arquivo...');
+      });
+    }
+
+    // Pasta inteira: mostra o que encontrou, por tipo, antes de guardar
+    const knBtnFolder = document.getElementById('btn-kn-import-folder');
+    if (knBtnFolder) {
+      knBtnFolder.addEventListener('click', async () => {
+        if (!window.mpeApi.selectImportFolder || !window.KnInsightsView) return;
+        const scan = await window.mpeApi.selectImportFolder();
+        if (!scan) return;
+        const box = document.getElementById('kn-folder-summary');
+        const V = window.KnInsightsView;
+        const el = V.el;
+        box.replaceChildren();
+        box.appendChild(el('span', 'kn-card-lbl', `Pasta ${scan.folderName}`));
+        if (!scan.files.length) {
+          box.appendChild(el('span', 'kn-muted', 'Não encontrei arquivos que o Katharos consiga ler aqui.'));
+        } else {
+          const card = V.renderInsightCard({ kind: 'rank', money: false, title: 'Encontrei', big: String(scan.files.length), bigLabel: scan.files.length === 1 ? 'arquivo para guardar' : 'arquivos para guardar', items: scan.byType, source: scan.folderName });
+          const foot = card.querySelector('.kn-insight-foot');
+          if (foot) foot.remove();
+          box.appendChild(card);
+          if (scan.skipped) box.appendChild(el('span', 'kn-muted', `${scan.skipped} outros arquivos ficam de fora (formato não aceito).`));
+          if (scan.truncated) box.appendChild(el('span', 'kn-muted', 'Pasta muito grande: peguei os primeiros 500.'));
+          const go = el('button', 'hud-btn primary', `Guardar ${scan.files.length} ${scan.files.length === 1 ? 'arquivo' : 'arquivos'}`);
+          go.type = 'button';
+          go.addEventListener('click', () => {
+            box.classList.add('hidden');
+            knQueueAdd(scan.files.map((f) => f.path));
+          });
+          box.appendChild(go);
+        }
+        box.classList.remove('hidden');
+        syncMiniWindowSize();
+      });
+    }
+
+    // Colar e reconhecer: diz o que o texto parece e sugere a pasta
+    const knPasteArea = document.getElementById('ai-doc-content');
+    let knPasteTimer = null;
+    if (knPasteArea) {
+      knPasteArea.addEventListener('input', () => {
+        clearTimeout(knPasteTimer);
+        knPasteTimer = setTimeout(async () => {
+          const hint = document.getElementById('kn-paste-hint');
+          if (!hint || !window.mpeApi.recognizeText || !window.KnInsightsView) return;
+          let rec = null;
+          try {
+            rec = await window.mpeApi.recognizeText(knPasteArea.value);
+          } catch (_) {}
+          if (!rec) {
+            hint.classList.add('hidden');
+            return;
+          }
+          const el = window.KnInsightsView.el;
+          hint.replaceChildren();
+          hint.appendChild(el('strong', '', rec.phrase));
+          if (rec.detail) hint.appendChild(el('span', 'kn-muted', rec.detail));
+          const b = el('button', 'hud-btn primary', `Guardar em ${rec.label}`);
+          b.type = 'button';
+          b.addEventListener('click', () => {
+            const cat = document.getElementById('ai-doc-category');
+            if (cat) cat.value = rec.category;
+            const conf = document.getElementById('btn-confirm-ai-doc');
+            if (conf) conf.click();
+          });
+          hint.appendChild(b);
+          hint.classList.remove('hidden');
+        }, 400);
       });
     }
 
@@ -489,6 +628,12 @@
         return;
       }
       const sideDrawer = document.getElementById('side-chat-drawer');
+      if (document.body.classList.contains('kn-busy') && !document.body.classList.contains('mode-bubble')) {
+        // Pergunta ainda processando: vai para o canto como mascote e avisa quando a resposta chegar
+        knEnterBubbleRef();
+        knBubbleSayRef('Pensando na sua pergunta…');
+        return;
+      }
       if (sideDrawer && !sideDrawer.classList.contains('hidden')) {
         sideDrawer.classList.add('hidden');
         syncMiniWindowSize();
@@ -1128,11 +1273,12 @@
       setRouteRef = setRoute;
 
       // Tamanho da janela: Barra (lateral) / Simples / Grande (com conversa) / Tela cheia
-      const SIZE_NAMES = { barra: 'Barra', simples: 'Simples', grande: 'Grande', cheia: 'Tela cheia' };
+      const SIZE_NAMES = { barra: 'Barra', simples: 'Simples', grande: 'Grande', cheia: 'Tela cheia', mascote: 'Mascote' };
       const SIZE_ORDER = ['barra', 'simples', 'grande'];
       const barEl = document.getElementById('kataros-bar');
 
       function currentWindowMode() {
+        if (document.body.classList.contains('mode-bubble')) return 'mascote';
         if (document.body.classList.contains('mode-bar')) return 'barra';
         if (document.body.classList.contains('mode-full')) return 'cheia';
         return sideDrawer.classList.contains('hidden') ? 'simples' : 'grande';
@@ -1153,6 +1299,14 @@
       }
 
       function applyWindowMode(mode, side) {
+        const isBubble = mode === 'mascote';
+        document.body.classList.toggle('mode-bubble', isBubble);
+        document.body.classList.toggle('bubble-left', isBubble && side === 'left');
+        if (!isBubble) knBubbleSay('');
+        if (isBubble) {
+          updateSizeUi();
+          return;
+        }
         const isBar = mode === 'barra';
         document.body.classList.toggle('mode-bar', isBar);
         document.body.classList.toggle('mode-full', mode === 'cheia');
@@ -1191,6 +1345,64 @@
       });
       document.getElementById('btn-size-full').addEventListener('click', () => {
         requestWindowMode(currentWindowMode() === 'cheia' ? 'grande' : 'cheia');
+      });
+
+      // ===== Modo mascote: segurar no mascote minimiza; ESC durante uma pergunta tambem =====
+      function knBubbleSay(text, kind) {
+        const say = document.getElementById('kn-bubble-say');
+        if (!say) return;
+        say.textContent = text || '';
+        say.classList.toggle('hidden', !text);
+        say.classList.toggle('is-answer', kind === 'answer');
+      }
+      knBubbleSayRef = knBubbleSay;
+      knEnterBubbleRef = () => requestWindowMode('mascote');
+
+      async function knLeaveBubble(route) {
+        const busyOrAnswer = document.body.classList.contains('kn-busy') || document.getElementById('kn-bubble-say').classList.contains('is-answer');
+        await requestWindowMode(busyOrAnswer || route ? 'grande' : 'simples');
+        if (route) setRoute(route);
+        const target = busyOrAnswer || route ? sideInputEl : document.getElementById('mini-ai-textarea');
+        if (target) target.focus();
+        const msgsEl = document.getElementById('side-chat-messages');
+        if (msgsEl) msgsEl.scrollTop = msgsEl.scrollHeight;
+      }
+      document.querySelectorAll('[data-bubble-route]').forEach((b) => {
+        b.addEventListener('click', () => knLeaveBubble(b.dataset.bubbleRoute));
+      });
+      const knSay = document.getElementById('kn-bubble-say');
+      if (knSay) knSay.addEventListener('click', () => knLeaveBubble(''));
+
+      // Segurar (sem arrastar) por 0,6 s no mascote alterna entre janela e so o mascote
+      [document.querySelector('.mini-node-ring'), document.getElementById('bar-drag-handle')].forEach((node) => {
+        if (!node) return;
+        let hold = null;
+        const cancel = () => {
+          if (hold) clearTimeout(hold.timer);
+          hold = null;
+          node.classList.remove('kn-holding');
+        };
+        node.addEventListener('pointerdown', (e) => {
+          if (e.button !== 0 || e.target.closest('button, input, textarea')) return;
+          cancel();
+          node.classList.add('kn-holding');
+          hold = {
+            x: e.screenX,
+            y: e.screenY,
+            timer: setTimeout(async () => {
+              hold = null;
+              node.classList.remove('kn-holding');
+              if (window.mpeApi.miniDragEnd) window.mpeApi.miniDragEnd();
+              if (currentWindowMode() === 'mascote') knLeaveBubble('');
+              else requestWindowMode('mascote');
+            }, 600)
+          };
+        });
+        node.addEventListener('pointermove', (e) => {
+          if (hold && (Math.abs(e.screenX - hold.x) > 6 || Math.abs(e.screenY - hold.y) > 6)) cancel();
+        });
+        node.addEventListener('pointerup', cancel);
+        node.addEventListener('pointercancel', cancel);
       });
 
       ['ia', 'local'].forEach((route) => {
@@ -1637,15 +1849,30 @@
       async function knAttachInsight(astDiv, prompt, res, route) {
         if (!knChartsOn() || !window.KnInsights || !window.KnInsightsView) return;
         if (!res || !res.ok) return;
-        if (!window.KnInsights.detectIntent(prompt)) return;
+        const realRoute = res.route || route;
         const docs = await knLoadDocs(true);
-        const spec = window.KnInsights.buildInsight(prompt, docs, { route: res.route || route });
-        if (!spec) return;
-        const card = window.KnInsightsView.renderInsightCard(spec, { onOpenReport: knOpenReport });
-        if (!card) return;
-        astDiv.appendChild(card);
         const msgsEl = document.getElementById('side-chat-messages');
-        if (msgsEl) msgsEl.scrollTop = msgsEl.scrollHeight;
+        const scrollEnd = () => {
+          if (msgsEl) msgsEl.scrollTop = msgsEl.scrollHeight;
+        };
+        const spec = window.KnInsights.detectIntent(prompt) ? window.KnInsights.buildInsight(prompt, docs, { route: realRoute }) : null;
+        if (spec) {
+          const card = window.KnInsightsView.renderInsightCard(spec, { onOpenReport: knOpenReport });
+          if (card) astDiv.appendChild(card);
+        }
+        // Outros jeitos de ver: oferecidos como pergunta, o grafico so aparece se escolher
+        const options = window.KnInsights.viewOptions(prompt, docs, { route: realRoute, shown: spec && spec.kind });
+        const ask = window.KnInsightsView.renderViewAsk(options, (id) => {
+          const view = window.KnInsights.buildView(id, knDocsCache.docs);
+          if (!view) return;
+          const card = window.KnInsightsView.renderInsightCard(view, { onOpenReport: knOpenReport });
+          if (!card) return;
+          if (ask && ask.isConnected) astDiv.insertBefore(card, ask);
+          else astDiv.appendChild(card);
+          scrollEnd();
+        });
+        if (ask) astDiv.appendChild(ask);
+        scrollEnd();
       }
 
       async function knOpenReport(docId) {
@@ -1705,7 +1932,7 @@
         const docs = await knLoadDocs(true);
         let recent = [];
         try {
-          recent = window.mpeApi.historyList ? await window.mpeApi.historyList({ maxDays: 7, maxItems: 3 }) : [];
+          recent = window.mpeApi.historyList ? await window.mpeApi.historyList({ maxDays: 7, maxItems: 20 }) : [];
         } catch (_) {}
         if (msgsEl.querySelector('.side-msg.user')) return;
         const old = msgsEl.querySelector('.kn-home');
@@ -1719,11 +1946,48 @@
         hello.appendChild(el('span', '', new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })));
         home.appendChild(hello);
 
+        // A - Pergunta primeiro: sugestoes conforme o que ja foi guardado
+        const cats = new Set(docs.map((d) => window.KnInsights.norm(d.category)));
+        const sugg = [];
+        if (cats.has('extratos')) sugg.push(['Qual meu saldo?', 'qual meu saldo?']);
+        if (cats.has('contratos')) sugg.push(['O que diz o contrato?', '/pdf contrato ']);
+        if (cats.has('curriculos')) sugg.push(['Resumo do currículo', '/curriculo resumo das minhas experiencias']);
+        if (cats.has('codigos')) sugg.push(['Explicar um código', '/codigo explicar ']);
+        if (docs.length) sugg.push(['Quantos documentos tenho?', 'quantos documentos eu tenho?']);
+        if (sugg.length) {
+          const box = el('div', 'kn-home-sugg');
+          box.appendChild(el('span', 'kn-card-lbl', 'Pergunte'));
+          const row = el('div', 'kn-ask-row');
+          sugg.slice(0, 4).forEach(([label, prompt]) => {
+            const b = el('button', 'kn-chip-btn', label);
+            b.type = 'button';
+            b.addEventListener('click', () => knUsePrompt(prompt, 'ia'));
+            row.appendChild(b);
+          });
+          box.appendChild(row);
+          home.appendChild(box);
+        }
+
         const grid = el('div', 'kn-home-grid');
+        // B - Mural de pastas: quantos documentos em cada tipo + Trazer arquivo
         const c1 = el('div', 'kn-home-card');
-        c1.appendChild(el('span', 'kn-card-lbl', 'Guardados'));
-        c1.appendChild(el('span', 'kn-big', String(sum.total)));
-        c1.appendChild(el('span', 'kn-big-lbl', sum.byType.length ? sum.byType.map((t) => `${t.label} ${t.value}`).join(' | ') : 'Nada guardado ainda'));
+        c1.appendChild(el('span', 'kn-card-lbl', `Guardados · ${sum.total}`));
+        if (sum.byType.length) {
+          const mural = el('div', 'kn-mural');
+          sum.byType.forEach((t) => {
+            const tile = el('div', 'kn-mural-tile');
+            tile.appendChild(el('span', 'kn-big-lbl', t.label));
+            tile.appendChild(el('span', 'kn-mural-n', String(t.value)));
+            mural.appendChild(tile);
+          });
+          c1.appendChild(mural);
+        } else {
+          c1.appendChild(el('span', 'kn-big-lbl', 'Nada guardado ainda'));
+        }
+        const bring = el('button', 'kn-btn-outline', 'Trazer arquivo');
+        bring.type = 'button';
+        bring.addEventListener('click', () => openSaveAiFileModal({}));
+        c1.appendChild(bring);
         grid.appendChild(c1);
 
         const c2 = el('div', 'kn-home-card');
@@ -1742,18 +2006,27 @@
         }
         home.appendChild(grid);
 
-        if (Array.isArray(recent) && recent.length) {
+        // C - Resumo do dia (ou, se hoje esta vazio, continuar de onde parou)
+        const pad2 = (n) => String(n).padStart(2, '0');
+        const now = new Date();
+        const todayKey = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+        const list0 = Array.isArray(recent) ? recent : [];
+        const today = list0.filter((r) => r.day === todayKey).slice(0, 5);
+        const VERB = { ia: 'Perguntou', local: 'Procurou', nota: 'Guardou' };
+        const rows = today.length ? today : list0.slice(0, 3);
+        if (rows.length) {
           const box = el('div', 'kn-home-card');
-          box.appendChild(el('span', 'kn-card-lbl', 'Continuar de onde parou'));
+          box.appendChild(el('span', 'kn-card-lbl', today.length ? 'Hoje' : 'Continuar de onde parou'));
           const list = el('div', 'kn-home-list');
-          recent.forEach((r) => {
+          rows.forEach((r) => {
             const b = el('button', 'kn-home-item');
             b.type = 'button';
             const dot = el('span', 'kn-dot');
             dot.style.background = KN_ROUTE_COLOR[r.route] || KN_ROUTE_COLOR.ia;
             b.appendChild(dot);
-            b.appendChild(el('span', 'kn-home-txt', r.text));
-            b.appendChild(el('span', 'kn-big-lbl', knDayLabel(r.day)));
+            if (today.length) b.appendChild(el('span', 'kn-big-lbl kn-home-time', r.time));
+            b.appendChild(el('span', 'kn-home-txt', today.length ? `${VERB[r.route] || 'Perguntou'}: ${r.text}` : r.text));
+            if (!today.length) b.appendChild(el('span', 'kn-big-lbl', knDayLabel(r.day)));
             b.addEventListener('click', () => knUsePrompt(r.text, r.route));
             list.appendChild(b);
           });
@@ -1777,15 +2050,106 @@
         msgsEl.insertBefore(home, msgsEl.firstChild);
       }
 
+      let knHistRoute = 'all';
+
+      // Texto com o termo da busca destacado (sem innerHTML)
+      function knHighlight(text, q) {
+        const el = window.KnInsightsView.el;
+        const span = el('span', '');
+        const raw = String(text || '');
+        if (!q) {
+          span.textContent = raw;
+          return span;
+        }
+        const normRaw = window.KnInsights.norm(raw);
+        let pos = 0;
+        let idx = normRaw.indexOf(q, pos);
+        while (idx !== -1) {
+          span.appendChild(document.createTextNode(raw.slice(pos, idx)));
+          span.appendChild(el('mark', 'kn-mark', raw.slice(idx, idx + q.length)));
+          pos = idx + q.length;
+          idx = normRaw.indexOf(q, pos);
+        }
+        span.appendChild(document.createTextNode(raw.slice(pos)));
+        return span;
+      }
+
+      // Trecho da resposta perto do termo buscado
+      function knSnippet(answer, q) {
+        const raw = String(answer || '');
+        if (!q) return raw.slice(0, 140) + (raw.length > 140 ? '…' : '');
+        const i = window.KnInsights.norm(raw).indexOf(q);
+        if (i === -1) return raw.slice(0, 140) + (raw.length > 140 ? '…' : '');
+        const from = Math.max(0, i - 50);
+        return (from ? '…' : '') + raw.slice(from, from + 150) + (from + 150 < raw.length ? '…' : '');
+      }
+
+      // Documento citado na pergunta ou na resposta (pelo nome do arquivo guardado)
+      function knDocOf(item) {
+        const hay = window.KnInsights.norm(`${item.text} ${item.answer || ''}`);
+        for (const d of knDocsCache.docs || []) {
+          const names = [d.fileName, d.title].filter(Boolean).map((n) => window.KnInsights.norm(n).replace(/\.[a-z0-9]+$/, ''));
+          if (names.some((n) => n.length >= 4 && hay.includes(n))) return d.fileName || d.title;
+        }
+        return '';
+      }
+
+      function knHistCard(i, q) {
+        const el = window.KnInsightsView.el;
+        const card = el('div', 'kn-hist-card');
+        const dot = el('span', 'kn-dot');
+        dot.style.background = KN_ROUTE_COLOR[i.route] || KN_ROUTE_COLOR.ia;
+        card.appendChild(dot);
+        const txt = el('div', 'kn-hist-txt');
+        const title = el('span', 'kn-hist-title');
+        title.appendChild(knHighlight(i.text, q));
+        txt.appendChild(title);
+        if (i.answer) {
+          const ans = el('span', 'kn-hist-ans');
+          ans.appendChild(document.createTextNode('Resposta: '));
+          ans.appendChild(knHighlight(knSnippet(i.answer, q), q));
+          txt.appendChild(ans);
+        }
+        txt.appendChild(el('span', 'kn-hist-meta', `${(ROUTE_UI[i.route] || ROUTE_UI.ia).tag} | ${knDayLabel(i.day)}, ${i.time}`));
+        card.appendChild(txt);
+        if (window.KnInsights.detectIntent(i.text)) card.appendChild(el('span', 'kn-hist-meta', 'com gráfico'));
+        const b = el('button', 'kn-btn-outline', 'Abrir');
+        b.type = 'button';
+        b.addEventListener('click', () => {
+          knCloseModal('modal-history');
+          knUsePrompt(i.text, i.route);
+        });
+        card.appendChild(b);
+        return card;
+      }
+
       function knRenderHistory(filter) {
         const list = document.getElementById('kn-history-list');
         if (!list || !window.KnInsightsView) return;
         const el = window.KnInsightsView.el;
         const q = window.KnInsights.norm(filter || '').trim();
-        const items = knHistoryItems.filter((i) => !q || window.KnInsights.norm(i.text).includes(q));
+        const byDoc = Boolean(document.getElementById('kn-history-bydoc') && document.getElementById('kn-history-bydoc').checked);
+        const items = knHistoryItems.filter(
+          (i) => (knHistRoute === 'all' || i.route === knHistRoute) && (!q || window.KnInsights.norm(`${i.text} ${i.answer || ''}`).includes(q))
+        );
         list.replaceChildren();
         if (!items.length) {
           list.appendChild(el('p', 'kn-muted', q ? 'Nada encontrado.' : 'Nenhuma conversa ainda.'));
+          return;
+        }
+        if (byDoc) {
+          const groups = new Map();
+          items.forEach((i) => {
+            const k = knDocOf(i) || '';
+            if (!groups.has(k)) groups.set(k, []);
+            groups.get(k).push(i);
+          });
+          const keys = Array.from(groups.keys()).sort((a, b) => (a === '' ? 1 : b === '' ? -1 : groups.get(b).length - groups.get(a).length));
+          keys.forEach((k) => {
+            const n = groups.get(k).length;
+            list.appendChild(el('div', 'kn-hist-day', k ? `${k} · ${n} ${n === 1 ? 'conversa' : 'conversas'}` : 'Sem documento citado'));
+            groups.get(k).forEach((i) => list.appendChild(knHistCard(i, q)));
+          });
           return;
         }
         let lastDay = '';
@@ -1794,23 +2158,23 @@
             lastDay = i.day;
             list.appendChild(el('div', 'kn-hist-day', knDayLabel(i.day)));
           }
-          const card = el('div', 'kn-hist-card');
-          const dot = el('span', 'kn-dot');
-          dot.style.background = KN_ROUTE_COLOR[i.route] || KN_ROUTE_COLOR.ia;
-          card.appendChild(dot);
-          const txt = el('div', 'kn-hist-txt');
-          txt.appendChild(el('span', 'kn-hist-title', i.text));
-          txt.appendChild(el('span', 'kn-hist-meta', `${(ROUTE_UI[i.route] || ROUTE_UI.ia).tag} | ${i.time}`));
-          card.appendChild(txt);
-          if (window.KnInsights.detectIntent(i.text)) card.appendChild(el('span', 'kn-hist-meta', 'com gráfico'));
-          const b = el('button', 'kn-btn-outline', 'Abrir');
-          b.type = 'button';
-          b.addEventListener('click', () => {
-            knCloseModal('modal-history');
-            knUsePrompt(i.text, i.route);
-          });
-          card.appendChild(b);
-          list.appendChild(card);
+          list.appendChild(knHistCard(i, q));
+        });
+      }
+
+      document.querySelectorAll('[data-hist-route]').forEach((b) => {
+        b.addEventListener('click', () => {
+          knHistRoute = b.dataset.histRoute;
+          document.querySelectorAll('[data-hist-route]').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
+          const f = document.getElementById('kn-history-filter');
+          knRenderHistory(f ? f.value : '');
+        });
+      });
+      const knByDoc = document.getElementById('kn-history-bydoc');
+      if (knByDoc) {
+        knByDoc.addEventListener('change', () => {
+          const f = document.getElementById('kn-history-filter');
+          knRenderHistory(f ? f.value : '');
         });
       }
 
@@ -1820,6 +2184,7 @@
         } catch (_) {
           knHistoryItems = [];
         }
+        await knLoadDocs(false);
         const f = document.getElementById('kn-history-filter');
         if (f) f.value = '';
         knRenderHistory('');
@@ -1862,6 +2227,7 @@
         autoResizeSideInput();
         renderRoute();
         chatBusy = true;
+        document.body.classList.add('kn-busy');
         const sendBtn = document.getElementById('btn-side-chat-send');
         sendBtn.disabled = true;
         const msgs = document.getElementById('side-chat-messages');
@@ -1945,6 +2311,11 @@
         }
         activeRequest = null;
         chatBusy = false;
+        document.body.classList.remove('kn-busy');
+        if (document.body.classList.contains('mode-bubble')) {
+          const plain = (contentEl.textContent || '').replace(/\s+/g, ' ').trim();
+          knBubbleSayRef(plain.length > 150 ? `${plain.slice(0, 150)}…` : plain || 'Pronto.', 'answer');
+        }
         sendBtn.disabled = false;
         msgs.scrollTop = msgs.scrollHeight;
         updateScrollBottomVisibility();
@@ -2093,6 +2464,7 @@
     if (window.mpeApi.onMiniAssistantSummoned) {
       window.mpeApi.onMiniAssistantSummoned((payload) => {
         document.querySelectorAll('.modal-backdrop:not(.hidden)').forEach((m) => m.classList.add('hidden'));
+        document.body.classList.remove('mode-bubble', 'bubble-left');
         document.body.classList.add('mode-mini-assistant');
         const miniOverlay = document.getElementById('mini-assistant-overlay');
         if (miniOverlay) miniOverlay.classList.remove('hidden');

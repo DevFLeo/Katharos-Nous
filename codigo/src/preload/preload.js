@@ -10,6 +10,10 @@ contextBridge.exposeInMainWorld('mpeApi', {
   selectFolder: () => ipcRenderer.invoke('mpe:select-folder'),
   selectFile: () => ipcRenderer.invoke('mpe:select-file'),
   selectDocumentFile: () => ipcRenderer.invoke('mpe:select-document-file'),
+  selectDocumentFiles: () => ipcRenderer.invoke('mpe:select-document-files'),
+  selectImportFolder: () => ipcRenderer.invoke('mpe:select-import-folder'),
+  recognizeText: (text) => ipcRenderer.invoke('mpe:recognize-text', { text }),
+  isSupportedFile: (filePath) => ipcRenderer.invoke('mpe:is-supported-file', { filePath }),
 
   // Entrega em Sistemas Externos & Clipboard
   copyToClipboard: (text) => ipcRenderer.invoke('mpe:copy-text', text),

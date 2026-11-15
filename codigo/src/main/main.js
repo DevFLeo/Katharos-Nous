@@ -11,7 +11,8 @@ const {
   dialog,
   clipboard,
   shell,
-  nativeImage
+  nativeImage,
+  session
 } = require('electron');
 
 const DEBUG_LOG = path.join(__dirname, '..', '..', 'logs', 'app_debug.log');
@@ -45,6 +46,8 @@ const StartupManager = require('./startupManager');
 const HookBridge = require('./hookBridge');
 const ActionExecutor = require('./actionExecutor');
 const LocalAiService = require('./localAiService');
+const AiDocuments = require('./aiDocuments');
+const importHelper = require('./importHelper');
 const { nearestCorner, cornerBounds, pickDisplay, edgeDockSide, barBounds } = require('./cornerSnap');
 
 const CODE_DIR = path.resolve(__dirname, '..', '..');
@@ -180,7 +183,66 @@ function leaveFull() {
   mainWindow.setBounds(back);
 }
 
+// Modo mascote: so o mascote fica na tela (segurar no mascote ou ESC durante uma pergunta)
+const BUBBLE_SIZE = { width: 380, height: 260 };
+let bubbleRestoreBounds = null;
+
+function enterBubble() {
+  if (!mainWindow || mainWindow.isDestroyed()) return { mode: 'mascote', side: null };
+  const b = mainWindow.getBounds();
+  if (windowMode === 'normal') bubbleRestoreBounds = b;
+  else if (windowMode === 'cheia') bubbleRestoreBounds = fullRestoreBounds;
+  if (miniSnapTimer) {
+    clearInterval(miniSnapTimer);
+    miniSnapTimer = null;
+  }
+  const wa = screen.getDisplayMatching(b).workArea;
+  // O mascote fica onde estava: o centro da bolha cai sobre o centro do mascote
+  const right = b.x + b.width / 2 > wa.x + wa.width / 2;
+  let x = right ? b.x + b.width - BUBBLE_SIZE.width : b.x;
+  let y = b.y;
+  x = Math.max(wa.x, Math.min(x, wa.x + wa.width - BUBBLE_SIZE.width));
+  y = Math.max(wa.y, Math.min(y, wa.y + wa.height - BUBBLE_SIZE.height));
+  windowMode = 'mascote';
+  mainWindow.setBounds({ x, y, width: BUBBLE_SIZE.width, height: BUBBLE_SIZE.height });
+  return { mode: 'mascote', side: right ? 'right' : 'left' };
+}
+
+function leaveBubble() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const b = mainWindow.getBounds();
+  const wa = screen.getDisplayMatching(b).workArea;
+  const back = bubbleRestoreBounds || { x: b.x, y: b.y, width: MINI_DEFAULT_SIZE.width, height: MINI_DEFAULT_SIZE.height };
+  bubbleRestoreBounds = null;
+  windowMode = 'normal';
+  const x = Math.max(wa.x, Math.min(back.x, wa.x + wa.width - back.width));
+  const y = Math.max(wa.y, Math.min(back.y, wa.y + wa.height - back.height));
+  mainWindow.setBounds({ x, y, width: back.width, height: back.height });
+}
+
+// Fecha tudo (motor de I.A incluido) e limpa o cache da janela; reabrir pelo Katharos.exe
+async function quitAndClearCache() {
+  isQuitting = true;
+  try {
+    await session.defaultSession.clearCache();
+    if (typeof session.defaultSession.clearCodeCaches === 'function') await session.defaultSession.clearCodeCaches({});
+  } catch (_) {}
+  logDebug('[APP] fechar totalmente: cache limpo');
+  hookBridge.stop();
+  app.quit();
+}
+
 function setWindowMode(mode) {
+  if (mode === 'mascote') return enterBubble();
+  if (windowMode === 'mascote') {
+    leaveBubble();
+    if (mode === 'cheia') {
+      enterFull();
+      return { mode: 'cheia', side: null };
+    }
+    if (mode === 'barra') return enterBar(dockSide);
+    return { mode: mode === 'grande' ? 'grande' : 'simples', side: null };
+  }
   if (mode === 'barra') return enterBar(dockSide);
   if (mode === 'cheia') {
     enterFull();
@@ -368,6 +430,7 @@ async function summonMiniAssistant({ x, y, source = 'mouse-hook', openChat = fal
   }
   windowMode = 'normal';
   fullRestoreBounds = null;
+  bubbleRestoreBounds = null;
 
   const currentDisplay = screen.getDisplayNearestPoint({ x: targetX, y: targetY });
   const wa = currentDisplay.workArea;
@@ -589,6 +652,10 @@ function createWindow() {
   });
 
   mainWindow.webContents.on('before-input-event', (_event, input) => {
+    if (input.type === 'keyDown' && input.control && input.shift && (input.key === 'Escape' || String(input.key).toLowerCase() === 'q')) {
+      quitAndClearCache();
+      return;
+    }
     if (input.type === 'keyDown' && input.key === 'Escape') {
       mainWindow.webContents.send('mpe:escape-pressed');
     }
@@ -659,6 +726,14 @@ function setupHooksAndShortcuts() {
   const cfg = configManager.get();
   const primaryFallback = (cfg.system && cfg.system.fallbackKeyboardShortcut) || 'CommandOrControl+Shift+J';
   const secondaryFallback = (cfg.system && cfg.system.fallbackKeyboardShortcutAlt) || 'CommandOrControl+Alt+K';
+
+  // Fechar totalmente de qualquer tela. Ctrl+Shift+Esc e do Windows (Gerenciador de Tarefas),
+  // por isso o atalho global e Ctrl+Shift+Q; com a janela em foco, Ctrl+Shift+Esc tambem vale se chegar ate o app.
+  try {
+    globalShortcut.register('CommandOrControl+Shift+Q', () => quitAndClearCache());
+  } catch (err) {
+    console.warn('[Katharos Shortcut] Nao foi possivel registrar Ctrl+Shift+Q:', err.message);
+  }
 
   [primaryFallback, secondaryFallback].forEach((accel) => {
     if (!accel) return;
@@ -773,6 +848,38 @@ function setupIpcHandlers() {
       removed: localAiService.removeDocument(idOrIndex)
     };
   });
+
+  ipcMain.handle('mpe:select-document-files', async () => {
+    const res = await dialog.showOpenDialog(mainWindow, {
+      title: 'Trazer arquivos para o Katharos',
+      filters: [
+        { name: 'Documentos, extratos e codigo', extensions: Array.from(AiDocuments.AUTO_INDEX_EXTENSIONS).map((e) => e.slice(1)) },
+        { name: 'Todos os Arquivos', extensions: ['*'] }
+      ],
+      properties: ['openFile', 'multiSelections']
+    });
+    if (res.canceled || !res.filePaths.length) return [];
+    return res.filePaths;
+  });
+
+  ipcMain.handle('mpe:select-import-folder', async () => {
+    const res = await dialog.showOpenDialog(mainWindow, {
+      title: 'Trazer uma pasta inteira para o Katharos',
+      properties: ['openDirectory']
+    });
+    if (res.canceled || !res.filePaths.length) return null;
+    return importHelper.scanFolder(res.filePaths[0]);
+  });
+
+  ipcMain.handle('mpe:recognize-text', async (_event, { text } = {}) => {
+    try {
+      return importHelper.recognizeText(text);
+    } catch (_) {
+      return null;
+    }
+  });
+
+  ipcMain.handle('mpe:is-supported-file', async (_event, { filePath } = {}) => importHelper.isSupported(filePath));
 
   ipcMain.handle('mpe:select-document-file', async () => {
     const res = await dialog.showOpenDialog(mainWindow, {
@@ -889,9 +996,7 @@ function setupIpcHandlers() {
   });
 
   ipcMain.handle('mpe:quit-app', () => {
-    isQuitting = true;
-    hookBridge.stop();
-    app.quit();
+    quitAndClearCache();
     return { ok: true };
   });
 }
