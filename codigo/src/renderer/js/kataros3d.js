@@ -99,7 +99,7 @@ class KatarosMascot3D {
       this.statusEl.textContent = this.isProcessing ? 'PROCESSANDO' : 'KATHAROS AI';
     }
     if (this.subEl) {
-      this.subEl.textContent = this.isProcessing ? (subText || 'AGUARDE') : (this.idleText || 'PRONTO');
+      this.subEl.textContent = this.isProcessing ? 'PENSANDO' : (this.idleText || 'PRONTO');
     }
   }
 
@@ -210,8 +210,9 @@ class KatarosMascot3D {
 
     // Menos quadros quando nao esta processando: 30 por segundo; 10 no modo mascote parado
     const idleBubble = !this.isProcessing && document.body.classList.contains('mode-bubble') && !document.body.classList.contains('kn-busy');
-    const minGap = this.isProcessing || this.energy > 0.05 || this.dots > 0.05 ? 0 : idleBubble ? 100 : 33;
-    if (!this.lastDrawTs || ts - this.lastDrawTs >= minGap - 2) {
+    // No modo mascote sem fazer nada fica imovel (nao redesenha ate voltar a trabalhar)
+    const minGap = this.isProcessing || this.energy > 0.05 || this.dots > 0.05 ? 0 : idleBubble ? Infinity : 33;
+    if (!this.lastDrawTs || (minGap !== Infinity && ts - this.lastDrawTs >= minGap - 2)) {
       this.lastDrawTs = ts;
       this.draw();
     }

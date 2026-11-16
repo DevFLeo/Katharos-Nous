@@ -1103,6 +1103,17 @@ async function main() {
     assert.ok(!/curr[ií]culo/i.test(html) && !/curr[ií]culo/i.test(appJs), 'curriculo fora da tela');
     ['value="Saude"', 'value="Estudos"', 'value="Garantias"', 'Contas e boletos'].forEach((t) => assert.ok(html.includes(t), `faltou ${t}`));
   });
+  await runCase('Visual', 'V17', '3 modos, sem caixa duplicada com o chat aberto e linha do motor no formato pedido', () => {
+    const theme = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'styles', 'theme.css'), 'utf8');
+    const appJs = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'js', 'app.js'), 'utf8');
+    assert.ok(/\.size-ctrl, #btn-mini-orient, #btn-mini-cascade, #mini-hud-resizer \{ display: none !important; \}/.test(theme), 'controles extras fora do topo');
+    assert.ok(/body\.chat-open:not\(\.mode-bubble\) \.mini-capsule-body/.test(theme), 'sem caixa duplicada');
+    assert.ok(/`Motor: \$\{engineName\} = \$\{state\}`/.test(appJs), 'Motor: Qwen2.5-7B = Pronto');
+    assert.ok(/localStorage\.removeItem\(LAYOUT_STORAGE_KEY\)/.test(appJs), 'layout salvo num lugar so');
+    const short = ('Qwen2.5-7B-Instruct-Q4_K_M'.match(/^(.*?\d+(?:\.\d+)?B)\b/i) || [])[1];
+    assert.strictEqual(short, 'Qwen2.5-7B');
+    assert.strictEqual(KnInsights.categoryLabel('Financeiro'), 'Contas e boletos');
+  });
   //@@ROTAS_NEXT@@
 
   const passed = results.filter((r) => r.status === 'PASS').length;

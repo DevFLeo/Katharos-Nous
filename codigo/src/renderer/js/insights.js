@@ -158,10 +158,18 @@
     };
   }
 
+  // Nome de cada pasta como aparece na tela (a pasta no disco continua sem acento)
+  const CATEGORY_LABEL = {
+    Financeiro: 'Contas e boletos', Saude: 'Saúde', Garantias: 'Garantias e notas', Curriculos: 'Currículos', Codigos: 'Códigos'
+  };
+  function categoryLabel(cat) {
+    return CATEGORY_LABEL[cat] || cat || 'Geral';
+  }
+
   function buildDocs(docs) {
     const counts = new Map();
     (docs || []).forEach((d) => {
-      const k = (d && d.category) || 'Geral';
+      const k = categoryLabel((d && d.category) || 'Geral');
       counts.set(k, (counts.get(k) || 0) + 1);
     });
     if (!counts.size) return null;
@@ -233,7 +241,7 @@
     return {
       total: list.length,
       byType: (buildDocs(list) || { items: [] }).items.slice(0, 4),
-      last: sorted[0] ? { title: sorted[0].title || sourceName(sorted[0]), category: sorted[0].category || 'Geral', createdAt: sorted[0].createdAt || '' } : null,
+      last: sorted[0] ? { title: sorted[0].title || sourceName(sorted[0]), category: categoryLabel(sorted[0].category), createdAt: sorted[0].createdAt || '' } : null,
       saldo
     };
   }
@@ -355,5 +363,5 @@
     return null;
   }
 
-  return { norm, formatBRL, detectIntent, isFinancialIntent, pickFinancialDoc, buildInsight, buildReport, homeSummary, describe, viewOptions, buildView, buildCalendar, buildBalanceBar, buildCvTimeline };
+  return { categoryLabel, norm, formatBRL, detectIntent, isFinancialIntent, pickFinancialDoc, buildInsight, buildReport, homeSummary, describe, viewOptions, buildView, buildCalendar, buildBalanceBar, buildCvTimeline };
 });

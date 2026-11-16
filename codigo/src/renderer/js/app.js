@@ -740,7 +740,8 @@
     let layoutState = Object.assign({}, layoutDefaults);
     try {
       const rawLayout = localStorage.getItem(LAYOUT_STORAGE_KEY);
-      if (rawLayout) layoutState = Object.assign({}, layoutDefaults, JSON.parse(rawLayout) || {});
+      // Layout fixo (Topo, sem cascata, escala 1): um so jeito de ver e um so lugar para salvar o tamanho (mpe.config.json)
+      if (rawLayout) localStorage.removeItem(LAYOUT_STORAGE_KEY);
     } catch (_) {}
     let cascadeExpanded = false;
     let cascadeLeaveTimer = null;
@@ -2084,11 +2085,12 @@
         try {
           const s = await window.mpeApi.aiStatus({ warmUp });
           mascotIdleFromStatus(s);
-          let label = STATUS_LABEL[s.engine] || s.engine;
-          if (s.provider !== 'auto' && s.provider !== 'llamafile') label = `${s.provider} (${s.engine})`;
-          if (!s.modelFound && !s.ready && s.engine === 'offline') label = 'Sem modelo em models/ - envie /status';
-          if (s.modelName && (s.engine === 'online' || s.engine === 'starting')) label += ` | ${s.modelName.replace(/\.llamafile(\.exe)?$/i, '')}`;
-          statusEl.textContent = `${label} | ${s.facts} fatos | ${s.examples} exemplos | ${s.documents || 0} docs`;
+          // Formato pedido: "Motor: Qwen2.5-7B = Pronto"
+          const rawName = String(s.modelName || '').replace(/\.(gguf|llamafile)(\.exe)?$/i, '');
+          const short = (rawName.match(/^(.*?\d+(?:\.\d+)?B)\b/i) || [])[1] || rawName;
+          const engineName = s.provider !== 'auto' && s.provider !== 'llamafile' ? s.provider : short || 'local';
+          const state = s.ready ? 'Pronto' : s.engine === 'starting' ? 'Carregando' : s.error || s.engine === 'error' ? 'Parado' : s.modelFound === false ? 'sem modelo' : 'Em espera';
+          statusEl.textContent = s.modelFound === false && !s.ready ? 'Motor: sem modelo (envie /status)' : `Motor: ${engineName} = ${state}`;
           statusEl.className = `side-ai-status ${s.ready ? 'online' : s.engine === 'starting' ? 'starting' : 'offline'}`;
         } catch (_) {
           statusEl.textContent = 'Motor indisponivel';

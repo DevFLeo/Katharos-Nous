@@ -640,3 +640,28 @@ body.mode-bar:not(.bar-collapsed) .kataros-bar > :nth-child(7) { animation-delay
 /* Miniatura: o nome ja esta no mascote; no topo ficam so os botoes (nada cortado) */
 .mini-header-title { display: none !important; }
 .mini-node-status { white-space: nowrap !important; }
+
+/* =========================================================================
+   3 MODOS: Icone (barra/mascote), Miniatura e Chat.
+   Some do topo: setas de tamanho, Topo/Lateral, cascata e a alca de escala.
+   Um so jeito de redimensionar: as bordas do chat.
+   ========================================================================= */
+.size-ctrl, #btn-mini-orient, #btn-mini-cascade, #mini-hud-resizer { display: none !important; }
+.mini-btn-icon:not(.icon-only) { padding: 0 12px !important; font-size: 13px !important; font-weight: 500 !important; text-transform: none !important; }
+#btn-size-full { width: 34px; }
+
+/* Chat aberto: a miniatura vira so a faixa do topo (sem caixa de texto duplicada) */
+body.chat-open:not(.mode-bubble) .mini-capsule-body,
+body.chat-open:not(.mode-bubble) .mini-review-preview { display: none !important; }
+body.chat-open:not(.mode-bubble) .mini-capsule-header { border-bottom: 0 !important; }
+
+/* Mascote: uma palavra so ("Pronto", "Pensando"), 12 px, letra normal */
+.mini-node-status { display: none !important; }
+.mini-node-sub {
+  display: block; font-size: 12px !important; font-weight: 600 !important; letter-spacing: 0 !important;
+  text-transform: lowercase; color: var(--kn-gold) !important;
+}
+.mini-node-sub::first-letter { text-transform: uppercase; }
+.bar-status { text-transform: lowercase; font-size: 12px !important; letter-spacing: 0 !important; }
+.bar-status::first-letter { text-transform: uppercase; }
+.bar-status { display: block; }
