@@ -215,9 +215,15 @@ class ConfigManager {
     // Tamanho do chat escolhido arrastando a borda (some se invalido)
     if ('chatSize' in rootData.ui) {
       const cs = rootData.ui.chatSize;
-      const ok = cs && Number.isFinite(cs.width) && Number.isFinite(cs.height) && cs.width >= 400 && cs.height >= 220;
+      const ok = cs && Number.isFinite(cs.width) && Number.isFinite(cs.height) && cs.width >= 280 && cs.height >= 220;
       if (ok) rootData.ui.chatSize = { width: Math.round(Math.min(cs.width, 4000)), height: Math.round(Math.min(cs.height, 3000)) };
       else delete rootData.ui.chatSize;
+    }
+    if ('freePos' in rootData.ui) {
+      const fp = rootData.ui.freePos;
+      const ok = fp && Number.isFinite(fp.x) && Number.isFinite(fp.y);
+      if (ok) rootData.ui.freePos = { x: Math.round(fp.x), y: Math.round(fp.y), displayId: Number.isFinite(fp.displayId) ? fp.displayId : null };
+      else delete rootData.ui.freePos;
     }
     const corner = rootData.ui.miniCorner;
     if (!corner || typeof corner !== 'object' || !['tl', 'tr', 'bl', 'br'].includes(corner.corner)) {

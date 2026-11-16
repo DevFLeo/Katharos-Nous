@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld('mpeApi', {
   miniResize: (size) => ipcRenderer.send('mpe:mini-resize', size),
   miniResizeStart: (edge) => ipcRenderer.send('mpe:mini-resize-start', edge),
   miniResizeEnd: () => ipcRenderer.send('mpe:mini-resize-end'),
+  barExpand: (expanded) => ipcRenderer.invoke('mpe:bar-expand', Boolean(expanded)),
+  resetMiniLayout: () => ipcRenderer.invoke('mpe:reset-mini-layout'),
   onChatSize: (cb) => ipcRenderer.on('mpe:chat-size', (_e, size) => cb(size)),
   setWindowMode: (mode) => ipcRenderer.invoke('mpe:set-window-mode', mode),
   hideHud: () => ipcRenderer.invoke('mpe:hide-hud'),

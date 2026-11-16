@@ -13,6 +13,8 @@
   let refreshMascotIdleRef = async () => {};
   let knBubbleSayRef = () => {};
   let knEnterBubbleRef = () => {};
+  let openGuideModalRef = async () => {};
+  let applyMiniLayoutRef = () => {};
 
   function applyUiPrefs(cfg) {
     const ui = (cfg && cfg.ui) || {};
@@ -36,19 +38,22 @@
   let pendingForgetCorner = false;
   const CORNER_NAMES = { tl: 'superior esquerdo', tr: 'superior direito', bl: 'inferior esquerdo', br: 'inferior direito' };
 
-  function renderCornerInfo(corner, dock) {
+  function renderCornerInfo(corner, dock, freePos) {
     const info = document.getElementById('cfg-corner-info');
     const btn = document.getElementById('btn-cfg-forget-corner');
     const hasDock = Boolean(dock && (dock.side === 'left' || dock.side === 'right'));
     const hasCorner = Boolean(corner && CORNER_NAMES[corner.corner]);
+    const hasFree = Boolean(freePos && Number.isFinite(freePos.x) && Number.isFinite(freePos.y));
     if (info) {
       info.textContent = hasDock
         ? `A janela vira barra na lateral ${dock.side === 'left' ? 'esquerda' : 'direita'}. Arraste para o meio da tela para trocar.`
         : hasCorner
-        ? `A janela fica no canto ${CORNER_NAMES[corner.corner]}. Arraste para outro canto ou para a lateral para trocar.`
-        : 'A janela abre perto do cursor. Arraste até um canto, ou até a lateral para virar barra.';
+        ? `A janela fica no canto ${CORNER_NAMES[corner.corner]}. Arraste livremente ou dê duplo clique no mascote para restaurar.`
+        : hasFree
+        ? 'A janela flutua na posição escolhida. Arraste livremente ou dê duplo clique no mascote para restaurar.'
+        : 'A janela abre perto do cursor. Arraste livremente pela tela ou até a lateral para virar barra.';
     }
-    if (btn) btn.classList.toggle('hidden', !(hasDock || hasCorner));
+    if (btn) btn.classList.toggle('hidden', !(hasDock || hasCorner || hasFree));
   }
 
   async function openSettingsModal() {
@@ -89,7 +94,7 @@
     setChk('cfg-large-text', ui.largeText);
     setChk('cfg-show-charts', ui.showCharts !== false);
     pendingForgetCorner = false;
-    renderCornerInfo(ui.miniCorner, ui.dock);
+    renderCornerInfo(ui.miniCorner, ui.dock, ui.freePos);
 
     const ai = cfg.ai || {};
     setVal('cfg-ai-provider', ai.provider || 'auto');
@@ -159,13 +164,18 @@
       const latest = await window.mpeApi.getConfig();
       latestUi = latest && latest.ui;
     } catch (_) {}
-    const prevUi = Object.assign({}, currentConfig.ui || {}, latestUi ? { miniCorner: latestUi.miniCorner || null, dock: latestUi.dock || null } : {});
+    const prevUi = Object.assign(
+      {},
+      currentConfig.ui || {},
+      latestUi ? { miniCorner: latestUi.miniCorner || null, dock: latestUi.dock || null, freePos: latestUi.freePos || null } : {}
+    );
     currentConfig.ui = Object.assign({}, prevUi, {
       defaultRoute: val('cfg-default-route', prevUi.defaultRoute || 'ia'),
       largeText: chk('cfg-large-text', Boolean(prevUi.largeText)),
       showCharts: chk('cfg-show-charts', prevUi.showCharts !== false),
       miniCorner: pendingForgetCorner ? null : prevUi.miniCorner || null,
-      dock: pendingForgetCorner ? null : prevUi.dock || null
+      dock: pendingForgetCorner ? null : prevUi.dock || null,
+      freePos: pendingForgetCorner ? null : prevUi.freePos || null
     });
     pendingForgetCorner = false;
 
@@ -256,6 +266,7 @@
         } catch (_) {}
       }
     }
+    openGuideModalRef = openGuideModal;
 
     const btnMiniSettings = document.getElementById('btn-mini-settings');
     if (btnMiniSettings) btnMiniSettings.addEventListener('click', openSettingsModal);
@@ -268,7 +279,7 @@
     if (btnForgetCorner) {
       btnForgetCorner.addEventListener('click', () => {
         pendingForgetCorner = true;
-        renderCornerInfo(null, null);
+        renderCornerInfo(null, null, null);
         showToast('Ao salvar, a janela volta a abrir perto do cursor.');
       });
     }
@@ -649,6 +660,7 @@
     let lastReviewedText = '';
     let lastReviewSourceText = '';
     let katarosMascot = null;
+    let katarosBarMascot = null;
 
     if (window.KatarosMascot3D) {
       const mCanvas = document.getElementById('kataros-mascot-canvas');
@@ -660,6 +672,9 @@
           document.getElementById('kataros-mascot-node')
         );
       }
+      // Mascote da barra lateral: o mesmo giroscopio animado, so o icone
+      const bCanvas = document.getElementById('kataros-bar-canvas');
+      if (bCanvas) katarosBarMascot = new window.KatarosMascot3D(bCanvas, null, null, null, { size: 56 });
     }
 
     async function runMiniAiReview(textToReview) {
@@ -711,41 +726,131 @@
       syncMiniWindowSize();
     }
 
+    const LAYOUT_STORAGE_KEY = 'katharos_hud_layout_state';
+    const layoutDefaults = {
+      floating: false,
+      x: 14,
+      y: 12,
+      lateral: false,
+      cascade: false,
+      scale: 1,
+      customW: 470,
+      customWLateral: 280
+    };
+    let layoutState = Object.assign({}, layoutDefaults);
+    try {
+      const rawLayout = localStorage.getItem(LAYOUT_STORAGE_KEY);
+      if (rawLayout) layoutState = Object.assign({}, layoutDefaults, JSON.parse(rawLayout) || {});
+    } catch (_) {}
+    let cascadeExpanded = false;
+    let cascadeLeaveTimer = null;
+    let cascadeShrinkTimer = null;
+
+    function persistLayoutState() {
+      try {
+        localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layoutState));
+      } catch (_) {}
+    }
+
+    function applyMiniLayoutState() {
+      const card = document.getElementById('mini-sci-hud-card');
+      const sideDrawer = document.getElementById('side-chat-drawer');
+      const btnOrient = document.getElementById('btn-mini-orient');
+      const btnCascade = document.getElementById('btn-mini-cascade');
+      if (!card) return;
+
+      const drawerOpen = Boolean(sideDrawer && !sideDrawer.classList.contains('hidden'));
+      const isFull = document.body.classList.contains('mode-full');
+      const scale = Math.max(0.78, Math.min(1.25, Number(layoutState.scale) || 1));
+      layoutState.scale = scale;
+
+      const textZoom = document.body.classList.contains('large-text') ? 1.25 : 1;
+      document.documentElement.style.setProperty('--float-scale', String(scale));
+      document.documentElement.style.setProperty('--kn-text-zoom', String(textZoom));
+      document.documentElement.style.setProperty('--kn-ui-zoom', String(Number((textZoom * scale).toFixed(3))));
+
+      card.classList.toggle('dock-lateral', Boolean(layoutState.lateral));
+      card.classList.toggle('cascade-mode', Boolean(layoutState.cascade) && !drawerOpen);
+      card.classList.toggle('is-floating-custom', isFull && Boolean(layoutState.floating));
+
+      if (isFull && layoutState.floating) {
+        const cx = Math.max(4, Math.min(window.innerWidth - 70, Number(layoutState.x) || 14));
+        const cy = Math.max(4, Math.min(window.innerHeight - 70, Number(layoutState.y) || 12));
+        layoutState.x = cx;
+        layoutState.y = cy;
+        card.style.setProperty('--float-x', `${cx}px`);
+        card.style.setProperty('--float-y', `${cy}px`);
+      } else {
+        card.style.removeProperty('--float-x');
+        card.style.removeProperty('--float-y');
+      }
+
+      const targetW = layoutState.lateral
+        ? Math.max(drawerOpen ? 310 : 240, Math.min(480, Number(layoutState.customWLateral) || 280))
+        : Math.max(drawerOpen ? 360 : 350, Math.min(680, Number(layoutState.customW) || 470));
+      card.style.setProperty('--custom-w', `${Math.round(targetW)}px`);
+
+      if (btnOrient) btnOrient.classList.toggle('active', Boolean(layoutState.lateral));
+      if (btnCascade) btnCascade.classList.toggle('active', Boolean(layoutState.cascade));
+    }
+    applyMiniLayoutRef = applyMiniLayoutState;
+
     function syncMiniWindowSize() {
       const card = document.getElementById('mini-sci-hud-card');
       const sideDrawer = document.getElementById('side-chat-drawer');
       if (!card || !window.mpeApi.miniResize) return;
-      const zoom = document.body.classList.contains('large-text') ? 1.25 : 1;
+      const drawerOpen = Boolean(sideDrawer && !sideDrawer.classList.contains('hidden'));
+      const cmdsOpen = Boolean(sideDrawer && sideDrawer.classList.contains('cmds-open'));
+      const hasOpenModal = document.querySelectorAll('.modal-backdrop:not(.hidden)').length > 0;
+      document.body.classList.toggle('chat-open', drawerOpen);
+      document.body.classList.toggle('kn-modal-open', hasOpenModal);
+      applyMiniLayoutState();
+
+      const textZoom = document.body.classList.contains('large-text') ? 1.25 : 1;
+      const floatScale = hasOpenModal || document.body.classList.contains('mode-full') ? 1 : Number(layoutState.scale) || 1;
+      const zoom = textZoom * floatScale;
       const chosen = (currentConfig && currentConfig.ui && currentConfig.ui.chatSize) || null;
       document.body.classList.toggle('kn-user-size', Boolean(chosen));
-      const rect = card.getBoundingClientRect();
-      const cardH = Math.ceil(rect.height) || 198;
-      const cardW = Math.max(Math.ceil(rect.width), card.scrollWidth * zoom, 560);
-      document.documentElement.style.setProperty('--mini-card-h', `${Math.round(cardH / zoom)}px`);
-      const drawerOpen = sideDrawer && !sideDrawer.classList.contains('hidden');
-      const cmdsOpen = sideDrawer && sideDrawer.classList.contains('cmds-open');
-      const hasOpenModal = document.querySelectorAll('.modal-backdrop:not(.hidden)').length > 0;
-      const availH = (window.screen && window.screen.availHeight) || 0;
+
+      const availH = (window.screen && window.screen.availHeight) || 900;
       const availW = (window.screen && window.screen.availWidth) || 4000;
       if (hasOpenModal) {
-        window.mpeApi.miniResize({ width: Math.round(820 * zoom), height: Math.round(660 * zoom) });
+        window.mpeApi.miniResize({ width: Math.round(820 * textZoom), height: Math.round(660 * textZoom) });
         return;
       }
+
+      const cascadeCollapsed = Boolean(layoutState.cascade) && !drawerOpen && !cascadeExpanded && !card.matches(':hover') && !card.matches(':focus-within');
+      if (cascadeCollapsed) {
+        const iconSize = Math.round(76 * zoom);
+        window.mpeApi.miniResize({ width: iconSize, height: iconSize });
+        return;
+      }
+
+      const rect = card.getBoundingClientRect();
+      const cardH = Math.ceil(rect.height) || (drawerOpen ? 50 : 190);
+      const minBaseW = layoutState.lateral ? (drawerOpen ? 310 : 240) : (drawerOpen ? 360 : 350);
+      const desiredCssW = layoutState.lateral
+        ? Math.max(minBaseW, Number(layoutState.customWLateral) || 280)
+        : Math.max(minBaseW, Number(layoutState.customW) || 470);
+      const cardW = Math.max(Math.ceil(rect.width), Math.round(desiredCssW * zoom));
+      document.documentElement.style.setProperty('--mini-card-h', `${Math.round(cardH / zoom)}px`);
+
       if (chosen) {
         // Tamanho escolhido pela borda: a janela fica desse tamanho e a tela se ajusta dentro dela (CSS).
-        const w = Math.min(availW, Math.max(576, chosen.width));
-        const h = drawerOpen ? Math.min(availH || chosen.height, Math.max(600, chosen.height)) : cardH + 16;
+        const w = Math.min(availW, Math.max(300, chosen.width));
+        const h = drawerOpen ? Math.min(availH || chosen.height, Math.max(320, chosen.height)) : cardH + 16;
         window.mpeApi.miniResize({ width: w, height: h });
         return;
       }
-      // Automatico: 546px de chat (626px com comandos), reduzido para caber na tela
-      let drawerH = cmdsOpen ? 626 : 546;
+
+      // Altura proporcional a tela, liberando leitura ampla para .side-chat-messages
+      let drawerH = cmdsOpen ? Math.min(620, Math.round(availH * 0.72)) : Math.min(560, Math.round(availH * 0.66));
       if (availH > 0) {
         const maxDrawer = Math.floor((availH - 8 - cardH - 16) / zoom) - 14;
-        drawerH = Math.max(220, Math.min(drawerH, maxDrawer));
+        drawerH = Math.max(260, Math.min(drawerH, maxDrawer));
       }
       document.documentElement.style.setProperty('--side-drawer-h', `${drawerH}px`);
-      const width = cardW + 16;
+      const width = Math.min(availW, cardW + 16);
       const height = cardH + 16 + (drawerOpen ? Math.round((drawerH + 14) * zoom) : 0);
       window.mpeApi.miniResize({ width, height });
     }
@@ -1002,13 +1107,15 @@
 
       document.getElementById('btn-mini-chat-toggle').addEventListener('click', () => {
         const mode = currentWindowMode();
-        requestWindowMode(mode === 'simples' ? 'grande' : 'simples');
+        requestWindowMode(mode === 'grande' ? 'simples' : 'grande');
       });
 
-      // Arrasto da janela compacta pelo cabecalho ou pelo no circular
+      // Arrasto da janela compacta pelo cabecalho ou pelo no circular (flutuacao livre)
+      const card = document.getElementById('mini-sci-hud-card');
+      const mascotNode = document.getElementById('kataros-mascot-node');
       const dragHandles = [
         document.getElementById('mini-drag-handle'),
-        document.querySelector('.mini-node-ring'),
+        mascotNode,
         document.getElementById('bar-drag-handle')
       ];
       dragHandles.forEach((handle) => {
@@ -1016,6 +1123,30 @@
         handle.addEventListener('pointerdown', (e) => {
           if (e.button !== 0 || e.target.closest('button, input, textarea')) return;
           e.preventDefault();
+          if (document.body.classList.contains('mode-full') && card && handle !== document.getElementById('bar-drag-handle')) {
+            const startX = e.clientX;
+            const startY = e.clientY;
+            const rect = card.getBoundingClientRect();
+            let moved = false;
+            const onMove = (ev) => {
+              const dx = ev.clientX - startX;
+              const dy = ev.clientY - startY;
+              if (!moved && Math.hypot(dx, dy) > 5) moved = true;
+              if (!moved) return;
+              layoutState.floating = true;
+              layoutState.x = Math.round(Math.max(4, Math.min(window.innerWidth - 70, rect.left + dx)));
+              layoutState.y = Math.round(Math.max(4, Math.min(window.innerHeight - 70, rect.top + dy)));
+              applyMiniLayoutState();
+            };
+            const onUp = () => {
+              window.removeEventListener('pointermove', onMove);
+              window.removeEventListener('pointerup', onUp);
+              if (moved) persistLayoutState();
+            };
+            window.addEventListener('pointermove', onMove);
+            window.addEventListener('pointerup', onUp);
+            return;
+          }
           handle.setPointerCapture(e.pointerId);
           if (window.mpeApi.miniDragStart) window.mpeApi.miniDragStart();
         });
@@ -1027,8 +1158,142 @@
         handle.addEventListener('lostpointercapture', endDrag);
       });
 
+      // Duplo clique no icone do mascote restaura posicao e tamanho padrao
+      if (mascotNode) {
+        mascotNode.addEventListener('dblclick', async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          layoutState = Object.assign({}, layoutDefaults);
+          cascadeExpanded = false;
+          if (card) card.classList.remove('cascade-peeking');
+          persistLayoutState();
+          if (currentConfig && currentConfig.ui) {
+            delete currentConfig.ui.chatSize;
+            delete currentConfig.ui.freePos;
+            currentConfig.ui.miniCorner = null;
+            currentConfig.ui.dock = null;
+          }
+          if (window.mpeApi.resetMiniLayout) {
+            try { await window.mpeApi.resetMiniLayout(); } catch (_) {}
+          }
+          applyMiniLayoutState();
+          syncMiniWindowSize();
+          showToast('Posição e tamanho padrão restaurados.');
+        });
+      }
+
+      // Alternar orientacao: Topo (horizontal) <-> Lateral (vertical)
+      const btnMiniOrient = document.getElementById('btn-mini-orient');
+      if (btnMiniOrient) {
+        btnMiniOrient.addEventListener('click', () => {
+          layoutState.lateral = !layoutState.lateral;
+          if (document.body.classList.contains('mode-full')) {
+            if (layoutState.lateral) {
+              layoutState.floating = true;
+              layoutState.x = Math.max(12, window.innerWidth - (layoutState.customWLateral || 280) - 14);
+              layoutState.y = 14;
+            } else {
+              layoutState.floating = false;
+            }
+          }
+          persistLayoutState();
+          applyMiniLayoutState();
+          syncMiniWindowSize();
+          showToast(layoutState.lateral ? 'Modo Lateral ativado.' : 'Modo Topo ativado.');
+        });
+      }
+
+      // Modo Cascata: recolhe para apenas o icone circular e expande no hover
+      const btnMiniCascade = document.getElementById('btn-mini-cascade');
+      if (btnMiniCascade) {
+        btnMiniCascade.addEventListener('click', () => {
+          layoutState.cascade = !layoutState.cascade;
+          if (layoutState.cascade && sideDrawer && !sideDrawer.classList.contains('hidden')) {
+            sideDrawer.classList.add('hidden');
+          }
+          cascadeExpanded = layoutState.cascade;
+          if (card) card.classList.toggle('cascade-peeking', cascadeExpanded);
+          persistLayoutState();
+          applyMiniLayoutState();
+          syncMiniWindowSize();
+          showToast(
+            layoutState.cascade
+              ? 'Modo Cascata ativado: passe o mouse sobre o ícone.'
+              : 'Modo Cascata desativado.'
+          );
+        });
+      }
+
+      if (card) {
+        card.addEventListener('mouseenter', () => {
+          if (!layoutState.cascade) return;
+          if (cascadeLeaveTimer) clearTimeout(cascadeLeaveTimer);
+          if (cascadeShrinkTimer) clearTimeout(cascadeShrinkTimer);
+          cascadeExpanded = true;
+          card.classList.add('cascade-peeking');
+          syncMiniWindowSize();
+        });
+        const scheduleCascadeCollapse = () => {
+          if (!layoutState.cascade) return;
+          if (cascadeLeaveTimer) clearTimeout(cascadeLeaveTimer);
+          cascadeLeaveTimer = setTimeout(() => {
+            if (card.matches(':hover') || card.contains(document.activeElement)) return;
+            cascadeExpanded = false;
+            card.classList.remove('cascade-peeking');
+            if (cascadeShrinkTimer) clearTimeout(cascadeShrinkTimer);
+            cascadeShrinkTimer = setTimeout(() => {
+              if (!cascadeExpanded) syncMiniWindowSize();
+            }, 220);
+          }, 260);
+        };
+        card.addEventListener('mouseleave', scheduleCascadeCollapse);
+        card.addEventListener('focusout', () => {
+          setTimeout(scheduleCascadeCollapse, 40);
+        });
+      }
+
+      // Alca de redimensionamento manual no canto inferior direito (largura + escala em localStorage)
+      const miniResizer = document.getElementById('mini-hud-resizer');
+      if (miniResizer && card) {
+        miniResizer.addEventListener('pointerdown', (e) => {
+          if (e.button !== 0) return;
+          e.preventDefault();
+          e.stopPropagation();
+          miniResizer.setPointerCapture(e.pointerId);
+          document.body.classList.add('kn-resizing');
+          const startScreenX = e.screenX;
+          const startScreenY = e.screenY;
+          const startScale = Number(layoutState.scale) || 1;
+          const startW = layoutState.lateral
+            ? (Number(layoutState.customWLateral) || 280)
+            : (Number(layoutState.customW) || 470);
+
+          const onMove = (ev) => {
+            const dx = ev.screenX - startScreenX;
+            const dy = ev.screenY - startScreenY;
+            if (layoutState.lateral) {
+              layoutState.customWLateral = Math.round(Math.max(240, Math.min(480, startW + dx)));
+            } else {
+              layoutState.customW = Math.round(Math.max(340, Math.min(680, startW + dx)));
+            }
+            layoutState.scale = Number(Math.max(0.78, Math.min(1.25, startScale + dy * 0.002)).toFixed(3));
+            applyMiniLayoutState();
+            syncMiniWindowSize();
+          };
+          const onUp = () => {
+            document.body.classList.remove('kn-resizing');
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+            window.removeEventListener('pointercancel', onUp);
+            persistLayoutState();
+          };
+          window.addEventListener('pointermove', onMove);
+          window.addEventListener('pointerup', onUp);
+          window.addEventListener('pointercancel', onUp);
+        });
+      }
+
       // Janela acompanha o tamanho real do card (textarea, revisao, chat)
-      const card = document.getElementById('mini-sci-hud-card');
       if (card && typeof ResizeObserver !== 'undefined') {
         new ResizeObserver(() => syncMiniWindowSize()).observe(card);
       }
@@ -1293,6 +1558,14 @@
         }
         const isBar = mode === 'barra';
         document.body.classList.toggle('mode-bar', isBar);
+        // Na barra comeca recolhida: so o icone; clicar abre o resto em cascata
+        document.body.classList.toggle('bar-collapsed', isBar);
+        const barHandle = document.getElementById('bar-drag-handle');
+        if (barHandle) barHandle.setAttribute('aria-expanded', 'false');
+        if (katarosBarMascot) {
+          if (isBar) katarosBarMascot.resume();
+          else katarosBarMascot.pause();
+        }
         document.body.classList.toggle('mode-full', mode === 'cheia');
         if (barEl) {
           barEl.classList.toggle('hidden', !isBar);
@@ -1307,6 +1580,40 @@
         if (!isBar && mode !== 'cheia') syncMiniWindowSize();
       }
       applyWindowModeRef = applyWindowMode;
+
+      // Clique no icone da barra: abre (cascata) ou recolhe; arrastar continua movendo
+      (function setupBarToggle() {
+        const handle = document.getElementById('bar-drag-handle');
+        if (!handle || !window.mpeApi.barExpand) return;
+        let down = null;
+        const toggle = async () => {
+          if (!document.body.classList.contains('mode-bar')) return;
+          const willExpand = document.body.classList.contains('bar-collapsed');
+          let res = null;
+          try {
+            res = await window.mpeApi.barExpand(willExpand);
+          } catch (_) {}
+          if (!res || !res.ok) return;
+          document.body.classList.toggle('bar-collapsed', !res.expanded);
+          handle.setAttribute('aria-expanded', String(res.expanded));
+        };
+        handle.addEventListener('pointerdown', (e) => {
+          if (e.button === 0) down = { x: e.screenX, y: e.screenY, t: performance.now() };
+        });
+        handle.addEventListener('pointerup', (e) => {
+          if (!down) return;
+          const moved = Math.abs(e.screenX - down.x) > 5 || Math.abs(e.screenY - down.y) > 5;
+          const quick = performance.now() - down.t < 450;
+          down = null;
+          if (!moved && quick) toggle();
+        });
+        handle.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            toggle();
+          }
+        });
+      })();
 
       async function requestWindowMode(mode) {
         let res = null;
@@ -1441,7 +1748,7 @@
       function autoResizeSideInput() {
         if (!sideInputEl) return;
         sideInputEl.style.height = 'auto';
-        const nextH = Math.max(52, Math.min(124, sideInputEl.scrollHeight));
+        const nextH = Math.max(36, Math.min(92, sideInputEl.scrollHeight));
         sideInputEl.style.height = `${nextH}px`;
       }
 
@@ -2252,6 +2559,9 @@
         activeRequest = { id: requestId, content: contentEl, started: false };
 
         try {
+          if (window.KatarosMascot3D && window.KatarosMascot3D.setModeAll) {
+            window.KatarosMascot3D.setModeAll(sentRoute === 'local' ? 'find' : sentRoute === 'nota' ? 'keep' : 'ask');
+          }
           const runChat = () => window.mpeApi.aiChat({ message: prompt, mode, tone, route: currentRoute, requestId });
           const res = katarosMascot
             ? await katarosMascot.runWithProcessing(runChat, { minDurationMs: 1500, subText: 'CHAT' })
@@ -2296,6 +2606,7 @@
         activeRequest = null;
         chatBusy = false;
         document.body.classList.remove('kn-busy');
+        if (window.KatarosMascot3D && window.KatarosMascot3D.setModeAll) window.KatarosMascot3D.setModeAll('idle');
         if (document.body.classList.contains('mode-bubble')) {
           const plain = (contentEl.textContent || '').replace(/\s+/g, ' ').trim();
           knBubbleSayRef(plain.length > 150 ? `${plain.slice(0, 150)}…` : plain || 'Pronto.', 'answer');
@@ -2431,11 +2742,26 @@
 
     setupMiniAssistant();
     applyUiPrefs(currentConfig);
+    applyMiniLayoutRef();
 
     window.addEventListener('keydown', (e) => {
+      const activeTag = (document.activeElement && document.activeElement.tagName) || '';
+      const isTypingField = ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag);
       if (e.key === 'Escape') {
         e.preventDefault();
         handleEscapeKey();
+      } else if (e.key === 'F1' || (e.key === '?' && !isTypingField)) {
+        const guideModal = document.getElementById('modal-guide');
+        const otherModalOpen = document.querySelector('.modal-backdrop:not(.hidden):not(#modal-guide)');
+        if (guideModal && !otherModalOpen) {
+          e.preventDefault();
+          if (guideModal.classList.contains('hidden')) {
+            openGuideModalRef();
+          } else {
+            guideModal.classList.add('hidden');
+            syncMiniWindowSizeRef();
+          }
+        }
       }
     });
 

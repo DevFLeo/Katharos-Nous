@@ -5,14 +5,22 @@
  *   por ~1.5 a 2 segundos e exibe o rotulo "PROCESSANDO"
  */
 class KatarosMascot3D {
-  constructor(canvas, statusEl, subEl, containerEl) {
+  constructor(canvas, statusEl, subEl, containerEl, opts = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d', { alpha: true });
     this.statusEl = statusEl;
     this.subEl = subEl;
     this.containerEl = containerEl;
 
-    this.size = 76;
+    this.size = (opts && opts.size) || 76;
+    // Modo de trabalho: idle | ask (processando, mais rapido) | find (procurando: gira ao contrario, pontos azuis) | keep (guardando: pontos verdes)
+    this.mode = 'idle';
+    this.dir = 1;
+    this.targetDir = 1;
+    this.dots = 0;
+    this.targetDots = 0;
+    this.dotColor = '92, 200, 245';
+    KatarosMascot3D.instances.push(this);
     this.dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.canvas.width = this.size * this.dpr;
     this.canvas.height = this.size * this.dpr;
@@ -76,6 +84,13 @@ class KatarosMascot3D {
     this.isProcessing = Boolean(active);
     this.targetSpeed = this.isProcessing ? 5.8 : 1.0;
     this.targetEnergy = this.isProcessing ? 1.0 : 0.0;
+    // Os outros mascotes (ex.: o da barra lateral) acompanham a velocidade
+    KatarosMascot3D.instances.forEach((m) => {
+      if (m === this) return;
+      m.isProcessing = this.isProcessing;
+      m.targetSpeed = this.targetSpeed;
+      m.targetEnergy = this.targetEnergy;
+    });
 
     if (this.containerEl) {
       this.containerEl.classList.toggle('is-processing', this.isProcessing);
@@ -86,6 +101,27 @@ class KatarosMascot3D {
     if (this.subEl) {
       this.subEl.textContent = this.isProcessing ? (subText || 'AGUARDE') : (this.idleText || 'PRONTO');
     }
+  }
+
+  /** Modo de trabalho deste mascote: idle, ask, find ou keep. */
+  setMode(mode) {
+    this.mode = ['ask', 'find', 'keep'].includes(mode) ? mode : 'idle';
+    this.targetDir = this.mode === 'find' ? -1 : 1;
+    this.targetDots = this.mode === 'find' || this.mode === 'keep' ? 1 : 0;
+    if (this.mode === 'find') this.dotColor = '92, 200, 245';
+    if (this.mode === 'keep') this.dotColor = '134, 214, 160';
+    if (this.mode !== 'idle' && !this.isProcessing) {
+      this.targetSpeed = this.mode === 'ask' ? 5.8 : 2.6;
+      this.targetEnergy = this.mode === 'ask' ? 1 : 0.55;
+    } else if (this.mode === 'idle' && !this.isProcessing) {
+      this.targetSpeed = 1.0;
+      this.targetEnergy = 0;
+    }
+  }
+
+  /** Muda o modo de todos os mascotes da tela ao mesmo tempo. */
+  static setModeAll(mode) {
+    KatarosMascot3D.instances.forEach((m) => m.setMode(mode));
   }
 
   /** Texto exibido sob o mascote quando nao esta processando (PRONTO, CARREGANDO, MODELO PARADO). */
@@ -167,11 +203,14 @@ class KatarosMascot3D {
     // Interpolacao suave da velocidade frenetica
     this.speedFactor += (this.targetSpeed - this.speedFactor) * Math.min(1, dt * 8);
     this.energy += (this.targetEnergy - this.energy) * Math.min(1, dt * 8);
-    this.time += dt * this.speedFactor;
+    // Procurando: o giro inverte suavemente
+    this.dir += (this.targetDir - this.dir) * Math.min(1, dt * 4);
+    this.dots += (this.targetDots - this.dots) * Math.min(1, dt * 5);
+    this.time += dt * this.speedFactor * this.dir;
 
     // Menos quadros quando nao esta processando: 30 por segundo; 10 no modo mascote parado
     const idleBubble = !this.isProcessing && document.body.classList.contains('mode-bubble') && !document.body.classList.contains('kn-busy');
-    const minGap = this.isProcessing || this.energy > 0.05 ? 0 : idleBubble ? 100 : 33;
+    const minGap = this.isProcessing || this.energy > 0.05 || this.dots > 0.05 ? 0 : idleBubble ? 100 : 33;
     if (!this.lastDrawTs || ts - this.lastDrawTs >= minGap - 2) {
       this.lastDrawTs = ts;
       this.draw();
@@ -286,6 +325,25 @@ class KatarosMascot3D {
       }
     }
 
+    // Pontos sci-fi orbitando: azuis procurando, verdes guardando
+    if (this.dots > 0.02) {
+      const n = 10;
+      ctx.shadowColor = `rgba(${this.dotColor}, 0.9)`;
+      ctx.shadowBlur = 6;
+      for (let i = 0; i < n; i++) {
+        const theta = (i / n) * Math.PI * 2 + this.time * 0.9;
+        const phi = Math.sin(i * 1.7 + this.time * 0.6) * 0.9;
+        const r = 0.62 + (i % 3) * 0.14;
+        const p = this.projectPoint(Math.cos(theta) * Math.cos(phi) * r, Math.sin(theta) * Math.cos(phi) * r, Math.sin(phi) * r, globalPitch, -globalYaw, 0, maxR, cx, cy);
+        const a = this.dots * (0.45 + (p.z + 1) * 0.27);
+        ctx.fillStyle = `rgba(${this.dotColor}, ${a})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 1.5 * p.scale + 0.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+    }
+
     // Nucleo central
     ctx.fillStyle = `rgba(255, 213, 132, ${0.55 + this.energy * 0.4})`;
     ctx.beginPath();
@@ -296,4 +354,5 @@ class KatarosMascot3D {
   }
 }
 
+KatarosMascot3D.instances = [];
 window.KatarosMascot3D = KatarosMascot3D;

@@ -1057,6 +1057,38 @@ async function main() {
     assert.strictEqual(new ConfigManager(tmpCfgDir, tmpCfgDir).get().ai.idleUnloadMinutes, 10);
     fs.rmSync(tmpCfgDir, { recursive: true, force: true });
   });
+  await runCase('Visual', 'V15', 'layout compacto, orientacao topo/lateral, modo cascata, resizer e atalhos kbd/F1', () => {
+    const html = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'index.html'), 'utf8');
+    const css = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'styles', 'main.css'), 'utf8');
+    const theme = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'styles', 'theme.css'), 'utf8');
+    const appJs = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'js', 'app.js'), 'utf8');
+    const mainJs = fs.readFileSync(path.join(CODE_DIR, 'src', 'main', 'main.js'), 'utf8');
+
+    ['id="btn-mini-orient"', 'id="btn-mini-cascade"', 'id="mini-hud-resizer"', 'class="guide-header-badge"'].forEach((s) => {
+      assert.ok(html.includes(s), `ausente no HTML: ${s}`);
+    });
+    assert.ok(/overflow-x:\s*hidden/.test(css) && /min-height:\s*160px/.test(css), 'side-chat-messages precisa min-height 160px e overflow-x hidden');
+    assert.ok(/calc\(100vh\s*-/.test(css), 'side-chat-drawer precisa altura dinamica proporcional a tela');
+    assert.ok(/body\.mode-mini-assistant\.chat-open:not\(\.mode-full\)\s*\.mini-capsule-body/.test(css), 'card superior deve recolher com chat aberto');
+    assert.ok(/\.mini-sci-hud\.dock-lateral/.test(css) && /\.mini-sci-hud\.cascade-mode:not\(:hover\)/.test(css), 'classes dock-lateral e cascade-mode ausentes');
+    assert.ok(/border-bottom-width:\s*2\.5px/.test(css) && /border-bottom-width:\s*2\.5px/.test(theme), 'estilo tactil 3D para kbd');
+    assert.ok(appJs.includes('katharos_hud_layout_state') && appJs.includes("e.key === 'F1'") && appJs.includes("e.key === '?'"), 'localStorage layout e atalho F1/?');
+    assert.ok(appJs.includes('resetMiniLayout') && mainJs.includes('mpe:reset-mini-layout') && mainJs.includes('saveFreePosition'), 'flutuacao livre e restauracao por duplo clique');
+  });
+  await runCase('Visual', 'V15', 'barra recolhida no icone (56 + 3 px), clique abre em cascata; mascote muda ao procurar e guardar', () => {
+    const html = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'index.html'), 'utf8');
+    const mainJs = fs.readFileSync(path.join(CODE_DIR, 'src', 'main', 'main.js'), 'utf8');
+    const mascotJs = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'js', 'kataros3d.js'), 'utf8');
+    const theme = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'styles', 'theme.css'), 'utf8');
+    assert.ok(html.includes('id="kataros-bar-canvas"'), 'icone animado na barra');
+    assert.ok(/BAR_COLLAPSED = \{ width: 62, height: 62 \}/.test(mainJs) && /mpe:bar-expand/.test(mainJs));
+    assert.ok(/kn-cascade-in/.test(theme) && /bar-collapsed \.kataros-bar \{/.test(theme));
+    assert.ok(/setModeAll/.test(mascotJs) && /targetDir = this\.mode === 'find' \? -1 : 1/.test(mascotJs), 'procurar inverte o giro');
+    assert.ok(/134, 214, 160/.test(mascotJs) && /92, 200, 245/.test(mascotJs), 'pontos verdes e azuis');
+    const { barBounds } = require('../src/main/cornerSnap');
+    const b = barBounds('right', 100, { x: 0, y: 0, width: 1920, height: 1040 }, { width: 62, height: 62 });
+    assert.deepStrictEqual(b, { x: 1858, y: 100, width: 62, height: 62 });
+  });
   //@@ROTAS_NEXT@@
 
   const passed = results.filter((r) => r.status === 'PASS').length;

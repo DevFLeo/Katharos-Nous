@@ -17,8 +17,8 @@
 
   <!-- 1b. BARRA LATERAL (janela encostada na borda da tela) -->
   <div id="kataros-bar" class="kataros-bar dock-right hidden" role="toolbar" aria-label="Katharos">
-    <div id="bar-drag-handle" class="bar-mascot" title="Arraste para mover ou tirar da borda">
-      <img src="../../assets/icon.png" alt="Katharos" draggable="false" />
+    <div id="bar-drag-handle" class="bar-mascot" role="button" tabindex="0" aria-expanded="false" title="Clique para abrir as acoes. Arraste para mover ou tirar da borda">
+      <canvas id="kataros-bar-canvas" class="bar-mascot-canvas" aria-label="Katharos"></canvas>
     </div>
     <span id="bar-status" class="bar-status">PRONTO</span>
     <button type="button" id="btn-bar-route-ia" class="bar-btn route-ia" data-route="ia" title="Perguntar" aria-label="Perguntar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 21l1.9-5.4A8 8 0 1 1 21 12z"/></svg></button>
@@ -34,7 +34,7 @@
   <div id="mini-assistant-overlay" class="mini-assistant-overlay">
     <div class="mini-sci-hud" id="mini-sci-hud-card">
       <!-- Mascote 3D Holografico Esquerdo (Giroscopio Dourado/Ambar) -->
-      <div class="mini-node-ring" id="kataros-mascot-node" title="Arraste para mover">
+      <div class="mini-node-ring" id="kataros-mascot-node" title="Arraste para mover | Duplo clique restaura padrão">
         <canvas id="kataros-mascot-canvas" class="kataros-mascot-canvas"></canvas>
         <div class="kataros-label-box">
           <div id="kataros-node-status" class="mini-node-status">KATHAROS AI</div>
@@ -53,7 +53,7 @@
 
       <!-- Capsula Sci-Fi Ciano/Azul -->
       <div class="mini-capsule-card">
-        <div class="mini-capsule-header" id="mini-drag-handle" title="Arraste para mover">
+        <div class="mini-capsule-header" id="mini-drag-handle" title="Arraste para mover livremente">
           <div class="mini-header-title">
             <span class="mini-tag">KATHAROS NOUS</span>
           </div>
@@ -71,6 +71,12 @@
             </div>
             <button type="button" id="btn-size-full" class="size-btn size-full" title="Tela cheia" aria-label="Tela cheia">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+            </button>
+            <button type="button" id="btn-mini-orient" class="mini-btn-icon icon-only" title="Alternar orientação: Topo ou Lateral" aria-label="Alternar orientação Topo ou Lateral">
+              <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 9v12"/></svg>
+            </button>
+            <button type="button" id="btn-mini-cascade" class="mini-btn-icon icon-only" title="Modo Cascata: mostrar apenas o ícone e expandir ao passar o mouse" aria-label="Modo Cascata">
+              <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="12" r="4"/><path d="M14 8h7M14 12h7M14 16h7"/></svg>
             </button>
             <button id="btn-mini-close" class="mini-btn-icon close" title="Ocultar (ESC)">X</button>
           </div>
@@ -135,6 +141,7 @@
             <div id="mini-review-text" class="mini-review-content"></div>
           </div>
         </div>
+        <span id="mini-hud-resizer" class="hud-resizer" title="Arraste para ajustar largura e escala"></span>
       </div>
     </div>
   </div>
@@ -253,7 +260,7 @@
       <div id="route-status" class="route-status route-ia" aria-live="polite"><strong>Vai para a inteligência</strong></div>
 
       <label for="side-chat-input" class="sr-only">Mensagem</label>
-      <textarea id="side-chat-input" class="side-chat-textarea route-ia" rows="2" placeholder="Escreva aqui. Comece com @ia, @local, @nota ou um comando /"></textarea>
+      <textarea id="side-chat-input" class="side-chat-textarea route-ia" rows="1" placeholder="Escreva aqui. Comece com @ia, @local, @nota ou um comando /"></textarea>
       <div class="side-chat-footer-actions">
         <button id="btn-side-chat-clear" class="side-action-btn subtle">Limpar</button>
         <details class="side-more">
@@ -478,37 +485,108 @@
 
   <!-- 6. MODAL GUIA RAPIDO, /BOOST E KITS MINIMOS -->
   <div id="modal-guide" class="modal-backdrop hidden">
-    <div class="modal-card wide">
-      <div class="modal-header">
-        <h2>Atalhos, /boost &amp; Kits Mínimos — Katharos Nous</h2>
-        <p>Referência direta de uso, cálculo de memória RAM, velocidade e hardware recomendado.</p>
+    <div class="modal-card wide guide-modal-card">
+      <div class="modal-header guide-header-row">
+        <div>
+          <h2>Atalhos, /boost &amp; Kits Mínimos — Katharos Nous</h2>
+          <p>Referência rápida de teclas, flutuação do painel, memória RAM e velocidade do motor local.</p>
+        </div>
+        <div class="guide-header-badge" title="Atalho para abrir ou fechar esta referência">
+          <kbd>F1</kbd>
+          <span class="kbd-plus">/</span>
+          <kbd>?</kbd>
+        </div>
       </div>
       <div class="modal-body">
         <div class="guide-grid">
           <div class="guide-box">
-            <h3>Atalhos Globais (Qualquer Tela)</h3>
+            <h3>Invocação &amp; Global</h3>
             <ul class="guide-list">
-              <li><kbd>Shift + Ctrl + Botão Dir.</kbd> <span>Abre Katharos Nous (Revisar / Chat / Obsidian)</span></li>
-              <li><kbd>Ctrl + Shift + J</kbd> <span>Atalho alternativo do teclado para abrir/focar</span></li>
-              <li><kbd>Ctrl + /</kbd> <span>Exibe ou oculta o painel de comandos no chat</span></li>
-              <li><kbd>ESC</kbd> <span>Fecha modal atual ou minimiza p/ bandeja</span></li>
+              <li>
+                <span class="kbd-combo"><kbd>Shift</kbd><span class="kbd-plus">+</span><kbd>Ctrl</kbd><span class="kbd-plus">+</span><kbd>Botão Dir.</kbd></span>
+                <span>Abre Katharos Nous sobre a tela</span>
+              </li>
+              <li>
+                <span class="kbd-combo"><kbd>Ctrl</kbd><span class="kbd-plus">+</span><kbd>Shift</kbd><span class="kbd-plus">+</span><kbd>J</kbd></span>
+                <span>Atalho alternativo de teclado</span>
+              </li>
+              <li>
+                <span class="kbd-combo"><kbd>F1</kbd><span class="kbd-plus">ou</span><kbd>?</kbd></span>
+                <span>Abre ou fecha esta referência</span>
+              </li>
+              <li>
+                <span class="kbd-combo"><kbd>ESC</kbd></span>
+                <span>Fecha modal, recolhe chat ou minimiza (0% CPU)</span>
+              </li>
+              <li>
+                <span class="kbd-combo"><kbd>Ctrl</kbd><span class="kbd-plus">+</span><kbd>Shift</kbd><span class="kbd-plus">+</span><kbd>Q</kbd></span>
+                <span>Encerra completamente limpando o cache</span>
+              </li>
             </ul>
-            <p class="machine-hint" style="margin-top:8px;">
-              Barra de Tarefas: fixe pelo atalho <strong>Katharos Nous - katharos AI</strong> ou diretamente pela janela aberta por <code>Katharos.exe</code>.
-            </p>
           </div>
 
           <div class="guide-box">
-            <div class="guide-boost-head">
-              <h3>Desempenho &amp; Memória (/boost)</h3>
-              <div class="boost-pills">
-                <button type="button" class="boost-pill" data-boost="eco">Eco</button>
-                <button type="button" class="boost-pill" data-boost="balanced">Balanceado</button>
-                <button type="button" class="boost-pill" data-boost="turbo">Turbo /boost</button>
-              </div>
-            </div>
-            <div id="guide-perf-metrics" class="guide-perf-metrics">Carregando cálculo de hardware...</div>
+            <h3>Chat &amp; Comandos</h3>
+            <ul class="guide-list">
+              <li>
+                <span class="kbd-combo"><kbd>Enter</kbd></span>
+                <span>Envia mensagem ou comando</span>
+              </li>
+              <li>
+                <span class="kbd-combo"><kbd>Shift</kbd><span class="kbd-plus">+</span><kbd>Enter</kbd></span>
+                <span>Quebra linha no campo de texto</span>
+              </li>
+              <li>
+                <span class="kbd-combo"><kbd>Ctrl</kbd><span class="kbd-plus">+</span><kbd>/</kbd></span>
+                <span>Mostra ou oculta painel de comandos</span>
+              </li>
+              <li>
+                <span class="kbd-combo"><kbd>Seta Cima</kbd><span class="kbd-plus">/</span><kbd>Baixo</kbd></span>
+                <span>Navega no histórico de prompts</span>
+              </li>
+            </ul>
           </div>
+
+          <div class="guide-box">
+            <h3>Layout &amp; Flutuação</h3>
+            <ul class="guide-list">
+              <li>
+                <span class="kbd-combo"><kbd>Arrastar</kbd></span>
+                <span>Move o painel livremente pela tela</span>
+              </li>
+              <li>
+                <span class="kbd-combo"><kbd>Duplo Clique</kbd></span>
+                <span>No mascote restaura posição e tamanho padrão</span>
+              </li>
+              <li>
+                <span class="kbd-combo"><kbd>Topo / Lateral</kbd></span>
+                <span>Alterna orientação horizontal e vertical</span>
+              </li>
+              <li>
+                <span class="kbd-combo"><kbd>Modo Cascata</kbd></span>
+                <span>Ícone circular que expande ao passar o mouse</span>
+              </li>
+              <li>
+                <span class="kbd-combo"><kbd>Canto Inf. Dir.</kbd></span>
+                <span>Ajusta largura e escala continuamente</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="guide-box" style="margin-top:12px;">
+          <div class="guide-boost-head">
+            <h3>Desempenho &amp; Memória (/boost)</h3>
+            <div class="boost-pills">
+              <button type="button" class="boost-pill" data-boost="eco">Eco</button>
+              <button type="button" class="boost-pill" data-boost="balanced">Balanceado</button>
+              <button type="button" class="boost-pill" data-boost="turbo">Turbo /boost</button>
+            </div>
+          </div>
+          <div id="guide-perf-metrics" class="guide-perf-metrics">Carregando cálculo de hardware...</div>
+          <p class="machine-hint" style="margin-top:8px;">
+            Barra de Tarefas: fixe pelo atalho <strong>Katharos Nous - katharos AI</strong> ou diretamente pela janela aberta por <code>Katharos.exe</code>.
+          </p>
         </div>
 
         <h3 class="section-subtitle" style="margin-top:16px;">Kits Mínimos e Estimativa de Velocidade</h3>

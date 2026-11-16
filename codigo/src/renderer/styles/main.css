@@ -1047,6 +1047,76 @@ body.mode-hud-only .placement-banner {
   transform: translateY(-1px);
 }
 
+.ui-icon {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+
+.hud-resizer {
+  position: absolute;
+  right: 5px;
+  bottom: 4px;
+  width: 11px;
+  height: 11px;
+  cursor: nwse-resize;
+  opacity: 0.6;
+  border-right: 2px solid #56B6ED;
+  border-bottom: 2px solid #56B6ED;
+  border-bottom-right-radius: 4px;
+  transition: opacity 0.16s ease, border-color 0.16s ease;
+  z-index: 8;
+}
+
+.hud-resizer:hover {
+  opacity: 1;
+  border-color: #73F3FF;
+}
+
+/* =========================================================================
+   TECLAS DE ATALHO TACTIL (<kbd>)
+   ========================================================================= */
+kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  border: 1px solid rgba(115, 211, 255, 0.45);
+  border-bottom-width: 2.5px;
+  background: linear-gradient(180deg, rgba(22, 36, 56, 0.96) 0%, rgba(9, 15, 26, 0.98) 100%);
+  color: #73F3FF;
+  font-family: Consolas, "Cascadia Mono", "Segoe UI", monospace;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  box-shadow:
+    0 2px 0 rgba(86, 182, 237, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.kbd-combo {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.kbd-plus {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  font-weight: 600;
+  padding: 0 1px;
+}
+
 /* =========================================================================
    7. MINI ASSISTENTE FLUTUANTE (LOWER THIRDS SCI-FI)
    Inspirado no design HUD espacial: Node circular com ECG + Capsula chanfrada
@@ -1064,14 +1134,175 @@ body.mode-hud-only .placement-banner {
 }
 
 .mini-sci-hud {
+  position: relative;
   pointer-events: auto;
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  width: 560px;
-  max-width: 560px;
+  gap: 8px;
+  width: var(--custom-w, 470px);
+  max-width: calc(100vw - 16px);
   box-sizing: border-box;
   animation: slideUpScale 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transition: width 0.24s cubic-bezier(0.16, 1, 0.3, 1), gap 0.22s ease;
+}
+
+.mini-sci-hud.is-floating-custom {
+  position: fixed;
+  left: var(--float-x, 12px);
+  top: var(--float-y, 12px);
+  transform: scale(var(--float-scale, 1));
+  transform-origin: top left;
+  z-index: 96;
+}
+
+.mini-sci-hud.dock-lateral {
+  flex-direction: column;
+  align-items: stretch;
+  width: var(--custom-w, 280px);
+  max-width: calc(100vw - 16px);
+  gap: 6px;
+}
+
+.mini-sci-hud.dock-lateral .mini-node-ring {
+  flex-direction: row;
+  width: 100%;
+  justify-content: flex-start;
+  padding: 4px 10px;
+  gap: 8px;
+  border-radius: 14px !important;
+}
+
+.mini-sci-hud.dock-lateral .kataros-mascot-canvas {
+  width: 42px;
+  height: 42px;
+}
+
+.mini-sci-hud.dock-lateral .kataros-label-box {
+  align-items: flex-start;
+  padding-bottom: 0;
+}
+
+.mini-sci-hud.dock-lateral .mini-capsule-header {
+  flex-wrap: wrap;
+  padding: 5px 8px;
+  gap: 4px;
+}
+
+.mini-sci-hud.dock-lateral .mini-header-controls {
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.mini-sci-hud.dock-lateral .mini-capsule-body {
+  padding: 7px 9px 10px;
+  gap: 6px;
+}
+
+.mini-sci-hud.dock-lateral .mini-route-btns {
+  gap: 4px;
+}
+
+.mini-sci-hud.dock-lateral .mini-route-btn {
+  min-height: 36px !important;
+  padding: 4px 4px;
+  font-size: 11px;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mini-sci-hud.dock-lateral .mini-route-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.mini-sci-hud.dock-lateral .mini-meta-fields {
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mini-sci-hud.dock-lateral .mini-field-small {
+  width: 100%;
+  flex: none;
+}
+
+.mini-sci-hud.dock-lateral .mini-action-row {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.mini-sci-hud.dock-lateral .mini-action-btns {
+  flex-wrap: wrap;
+}
+
+/* MODO CASCATA: apenas o icone circular visivel; ao passar o mouse expande em cascata */
+.mini-sci-hud.cascade-mode:not(:hover):not(:focus-within):not(.cascade-peeking) {
+  width: 60px !important;
+  max-width: 60px !important;
+  gap: 0 !important;
+}
+
+.mini-sci-hud.cascade-mode:not(:hover):not(:focus-within):not(.cascade-peeking) .mini-node-ring {
+  width: 58px !important;
+  height: 58px !important;
+  padding: 3px !important;
+  border-radius: 50% !important;
+  justify-content: center !important;
+  gap: 0 !important;
+}
+
+.mini-sci-hud.cascade-mode:not(:hover):not(:focus-within):not(.cascade-peeking) .kataros-mascot-canvas {
+  width: 50px !important;
+  height: 50px !important;
+}
+
+.mini-sci-hud.cascade-mode:not(:hover):not(:focus-within):not(.cascade-peeking) .kataros-label-box {
+  max-width: 0;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  padding: 0;
+  margin: 0;
+}
+
+.mini-sci-hud.cascade-mode:not(:hover):not(:focus-within):not(.cascade-peeking) .mini-capsule-card,
+.mini-sci-hud.cascade-mode:not(:hover):not(:focus-within):not(.cascade-peeking) .hud-resizer {
+  max-width: 0 !important;
+  max-height: 0 !important;
+  opacity: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-width: 0 !important;
+  pointer-events: none !important;
+  transform: scale(0.86);
+}
+
+.mini-sci-hud.cascade-mode .mini-capsule-card {
+  transition: opacity 0.22s ease, max-width 0.26s cubic-bezier(0.16, 1, 0.3, 1), max-height 0.26s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s ease;
+}
+
+.mini-sci-hud.cascade-mode .mini-capsule-header,
+.mini-sci-hud.cascade-mode .mini-input-row,
+.mini-sci-hud.cascade-mode .mini-controls-bar {
+  transition: opacity 0.2s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mini-sci-hud.cascade-mode:hover .mini-capsule-header,
+.mini-sci-hud.cascade-mode:focus-within .mini-capsule-header,
+.mini-sci-hud.cascade-mode.cascade-peeking .mini-capsule-header {
+  transition-delay: 25ms;
+}
+
+.mini-sci-hud.cascade-mode:hover .mini-input-row,
+.mini-sci-hud.cascade-mode:focus-within .mini-input-row,
+.mini-sci-hud.cascade-mode.cascade-peeking .mini-input-row {
+  transition-delay: 60ms;
+}
+
+.mini-sci-hud.cascade-mode:hover .mini-controls-bar,
+.mini-sci-hud.cascade-mode:focus-within .mini-controls-bar,
+.mini-sci-hud.cascade-mode.cascade-peeking .mini-controls-bar {
+  transition-delay: 95ms;
 }
 
 /* Modo Mini: janela compacta, sem fundo escurecido nem conteudo do HUD */
@@ -1079,10 +1310,56 @@ body.mode-mini-assistant {
   background: transparent !important;
 }
 
+body.mode-mini-assistant:not(.mode-full):not(.kn-modal-open) {
+  zoom: var(--kn-ui-zoom, 1);
+}
+
+body.mode-mini-assistant.chat-open:not(.mode-full) .mini-capsule-card {
+  height: auto;
+  overflow: hidden;
+}
+
+body.mode-mini-assistant.chat-open:not(.mode-full) .mini-capsule-body,
+body.mode-mini-assistant.chat-open:not(.mode-full) .mini-review-preview {
+  display: none !important;
+}
+
+body.mode-mini-assistant.chat-open:not(.mode-full) .mini-capsule-header {
+  border-bottom: 0 !important;
+  padding: 5px 8px;
+}
+
+body.mode-mini-assistant.chat-open:not(.mode-full) .mini-capsule-card > .hud-resizer {
+  display: none;
+}
+
+body.mode-mini-assistant.chat-open:not(.mode-full) .mini-node-ring {
+  flex-direction: row;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  padding: 2px;
+  gap: 0;
+  border-radius: 50% !important;
+}
+
+body.mode-mini-assistant.chat-open:not(.mode-full) .kataros-mascot-canvas {
+  width: 36px;
+  height: 36px;
+}
+
+body.mode-mini-assistant.chat-open:not(.mode-full) .kataros-label-box {
+  display: none;
+}
+
+body.mode-mini-assistant.chat-open:not(.mode-full) .mini-sci-hud.dock-lateral {
+  width: var(--custom-w, 320px);
+}
+
 body.mode-mini-assistant .hud-toast {
   top: auto;
   bottom: 10px;
-  left: 94px;
+  left: 84px;
   right: 14px;
   padding: 6px 12px;
   font-size: 11px;
@@ -1090,19 +1367,21 @@ body.mode-mini-assistant .hud-toast {
 }
 
 body.mode-mini-assistant .side-chat-drawer {
-  top: calc(var(--mini-card-h, 190px) + 14px);
+  top: calc(var(--mini-card-h, 52px) + 12px);
   left: 8px;
   right: 8px;
   width: auto;
-  max-width: none;
-  height: var(--side-drawer-h, 546px);
+  max-width: calc(100vw - 16px);
+  height: min(560px, calc(100vh - var(--mini-card-h, 52px) - 20px));
+  min-height: 260px;
+  overflow: hidden;
   border: 1.5px solid rgba(229, 184, 75, 0.45);
-  border-radius: 8px;
+  border-radius: 10px;
   animation: fadeIn 0.18s ease forwards;
 }
 
 body.mode-mini-assistant .side-chat-drawer.cmds-open {
-  height: var(--side-drawer-h, 626px);
+  height: min(620px, calc(100vh - var(--mini-card-h, 52px) - 20px));
 }
 
 #mini-drag-handle,
@@ -1129,20 +1408,20 @@ body.mode-mini-assistant .side-chat-drawer.cmds-open {
 /* Mascote 3D Holografico Esquerdo (AI Kataros) */
 .mini-node-ring {
   position: relative;
-  width: 82px;
+  width: 70px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 3px;
   padding: 4px;
   box-sizing: border-box;
   background: radial-gradient(circle at 50% 42%, rgba(28, 18, 5, 0.92) 0%, rgba(5, 3, 2, 0.97) 100%);
   border-radius: 14px;
   border: 1.5px solid rgba(229, 184, 75, 0.52);
   box-shadow: 0 0 22px rgba(229, 184, 75, 0.25), inset 0 0 14px rgba(255, 165, 30, 0.14);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, width 0.2s ease, height 0.2s ease, border-radius 0.2s ease;
 }
 
 .mini-node-ring.is-processing {
@@ -1152,10 +1431,11 @@ body.mode-mini-assistant .side-chat-drawer.cmds-open {
 
 .kataros-mascot-canvas {
   display: block;
-  width: 76px;
-  height: 76px;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
   pointer-events: none;
+  transition: width 0.2s ease, height 0.2s ease;
 }
 
 .kataros-label-box {
@@ -1220,7 +1500,8 @@ body.mode-mini-assistant .side-chat-drawer.cmds-open {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 12px;
+  gap: 5px;
+  padding: 5px 8px;
   background: rgba(14, 22, 36, 0.65);
   border-bottom: 1px solid rgba(86, 182, 237, 0.2);
 }
@@ -1228,17 +1509,17 @@ body.mode-mini-assistant .side-chat-drawer.cmds-open {
 .mini-header-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
 }
 
 .mini-tag {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 800;
   color: var(--gold-secondary);
-  letter-spacing: 1px;
+  letter-spacing: 0.3px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1254,7 +1535,7 @@ body.mode-mini-assistant .side-chat-drawer.cmds-open {
 .mini-header-controls {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
   white-space: nowrap;
 }
@@ -1264,12 +1545,27 @@ body.mode-mini-assistant .side-chat-drawer.cmds-open {
   border: 1px solid rgba(86, 182, 237, 0.35);
   color: #73F3FF;
   font-family: inherit;
-  font-size: 11px;
+  font-size: 9.5px;
   font-weight: 700;
-  padding: 2px 8px;
+  padding: 2px 5px;
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.18s ease;
+}
+
+.mini-btn-icon.icon-only {
+  padding: 3px;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mini-btn-icon.active {
+  background: rgba(115, 243, 255, 0.22);
+  border-color: #73F3FF;
+  color: #FFFFFF;
 }
 
 .mini-btn-icon:hover {
@@ -1525,10 +1821,11 @@ body.mode-mini-assistant #btn-side-chat-wide {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 10px;
-  padding: 14px 18px;
+  gap: 8px;
+  padding: 8px 12px;
   background: rgba(15, 24, 38, 0.92);
   border-bottom: 1px solid rgba(115, 211, 255, 0.28);
+  flex-shrink: 0;
 }
 
 .side-chat-title-group {
@@ -1537,27 +1834,30 @@ body.mode-mini-assistant #btn-side-chat-wide {
 }
 
 .side-chat-tag {
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 800;
   color: #7CE8FF;
-  letter-spacing: 1.4px;
+  letter-spacing: 1.2px;
 }
 
 .side-chat-title {
-  font-size: 15px;
+  font-size: 13.5px;
   font-weight: 800;
   color: #FFFFFF;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.4px;
   margin-top: 1px;
 }
 
 .side-ai-status {
-  margin-top: 4px;
-  font-size: 11.5px;
+  margin-top: 2px;
+  font-size: 10.5px;
   font-weight: 600;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.15px;
   color: #CBD5E1;
-  line-height: 1.35;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .side-ai-status.online {
@@ -1696,20 +1996,22 @@ body.mode-mini-assistant #btn-side-chat-wide {
 
 .side-chat-messages-wrap {
   position: relative;
-  flex: 1;
-  min-height: 0;
+  flex: 1 1 auto;
+  min-height: 160px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .side-chat-messages {
-  flex: 1;
-  min-height: 0;
+  flex: 1 1 auto;
+  min-height: 160px;
   overflow-y: auto;
-  padding: 16px 18px;
+  overflow-x: hidden;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
   scrollbar-width: thin;
   scrollbar-color: rgba(115, 211, 255, 0.38) rgba(6, 10, 18, 0.65);
 }
@@ -1764,7 +2066,8 @@ body.mode-mini-assistant #btn-side-chat-wide {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  max-width: 94%;
+  max-width: 100%;
+  min-width: 0;
   animation: fadeIn 0.2s ease forwards;
 }
 
@@ -1919,18 +2222,19 @@ body.mode-mini-assistant #btn-side-chat-wide {
 }
 
 .side-chat-input-bar {
-  padding: 12px 18px 14px;
+  padding: 7px 10px 8px;
   background: rgba(10, 16, 26, 0.97);
   border-top: 1px solid rgba(115, 211, 255, 0.3);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
+  flex-shrink: 0;
 }
 
 .side-chat-textarea {
   width: 100%;
-  min-height: 52px;
-  max-height: 124px;
+  min-height: 36px;
+  max-height: 92px;
   overflow-y: auto;
   box-sizing: border-box;
   background: rgba(5, 9, 16, 0.94);
@@ -1938,9 +2242,9 @@ body.mode-mini-assistant #btn-side-chat-wide {
   border-radius: 7px;
   color: #F8FAFC;
   font-family: inherit;
-  font-size: 13px;
-  line-height: 1.45;
-  padding: 9px 12px;
+  font-size: 12.5px;
+  line-height: 1.38;
+  padding: 6px 9px;
   outline: none;
   resize: none;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
@@ -2935,9 +3239,12 @@ body.theme-light .dim-pill:not(.active) {
 }
 
 .side-input-hint {
-  font-size: 10.5px;
+  font-size: 10px;
   color: #94A3B8;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .side-cmds-panel {
@@ -3119,10 +3426,44 @@ body.mode-mini-assistant .side-quick-cmds {
   padding: 6px 2px;
 }
 
+.modal-card.wide.guide-modal-card {
+  max-width: 960px;
+  padding: 20px 22px;
+}
+
+.guide-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.guide-header-row p {
+  margin-bottom: 0;
+}
+
+.guide-header-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 10px;
+  background: rgba(86, 182, 237, 0.08);
+  border: 1px solid rgba(115, 211, 255, 0.3);
+  flex-shrink: 0;
+}
+
 .guide-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 780px) {
+  .guide-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .guide-box {
@@ -3130,12 +3471,29 @@ body.mode-mini-assistant .side-quick-cmds {
   border: 1px solid rgba(229, 184, 75, 0.24);
   border-radius: 10px;
   padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
 }
 
 .guide-box h3 {
-  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
   color: var(--gold-secondary);
   margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(115, 211, 255, 0.16);
+}
+
+.guide-box h3::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #73F3FF;
+  box-shadow: 0 0 8px #73F3FF;
+  flex-shrink: 0;
 }
 
 .guide-list {
@@ -3148,15 +3506,15 @@ body.mode-mini-assistant .side-quick-cmds {
 }
 
 .guide-list li {
-  display: grid;
-  grid-template-columns: minmax(170px, auto) 1fr;
-  align-items: center;
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
 
+.guide-list li .kbd-combo,
 .guide-list li kbd {
   justify-self: start;
-  white-space: nowrap;
 }
 
 .guide-boost-head {
@@ -3400,26 +3758,29 @@ body.theme-light .side-cmd-chip.ui-action {
 .route-bar {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
+  gap: 5px;
 }
 
 .route-btn {
   --route-color: #E8B04B;
   --route-ink: #1A1204;
-  min-height: 44px;
+  min-height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 6px 10px;
+  gap: 5px;
+  padding: 4px 6px;
   border-radius: 9px;
-  border: 2px solid var(--route-color);
+  border: 1.5px solid var(--route-color);
   background: rgba(5, 9, 16, 0.92);
   color: #F1F5F9;
   font-family: inherit;
-  font-size: 14px;
-  font-weight: 800;
+  font-size: 12px;
+  font-weight: 700;
   cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
@@ -3427,8 +3788,8 @@ body.theme-light .side-cmd-chip.ui-action {
 .route-btn[data-route="nota"] { --route-color: #86D6A0; --route-ink: #06170C; }
 
 .route-btn svg {
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
   flex-shrink: 0;
 }
 
@@ -3449,9 +3810,9 @@ body.theme-light .side-cmd-chip.ui-action {
 }
 
 .route-status {
-  font-size: 12px;
+  font-size: 11px;
   color: #CBD5E1;
-  line-height: 1.35;
+  line-height: 1.25;
 }
 
 .route-status strong {
@@ -3464,13 +3825,13 @@ body.theme-light .side-cmd-chip.ui-action {
 .side-chat-textarea.route-ia:focus,
 .side-chat-textarea.route-local:focus,
 .side-chat-textarea.route-nota:focus {
-  border: 2px solid var(--route-color);
+  border: 1.5px solid var(--route-color);
 }
 
 .side-action-btn.route-send {
-  min-height: 40px;
-  padding: 8px 20px;
-  font-size: 13px;
+  min-height: 32px;
+  padding: 4px 14px;
+  font-size: 12px;
   background: var(--route-color);
   border-color: var(--route-color);
   color: var(--route-ink);
@@ -3520,17 +3881,25 @@ body.theme-light .side-cmd-chip.ui-action {
 }
 
 body.large-text {
+  --kn-text-zoom: 1.25;
+}
+
+body.mode-full.large-text,
+body.kn-modal-open.large-text {
   zoom: 1.25;
 }
 
-/* Mini assistente: tres acoes grandes + "Mais opcoes" */
+/* Mini assistente: tres acoes compactas + "Mais opcoes" */
 .mini-route-btns {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
+  gap: 5px;
 }
 
 .route-btn.mini-route-btn {
+  min-height: 36px;
+  padding: 5px 7px;
+  font-size: 12.5px;
   background: var(--route-color);
   color: var(--route-ink);
   border-color: var(--route-color);
@@ -3705,18 +4074,18 @@ body.mode-bar .modal-backdrop {
   display: inline-flex;
   align-items: center;
   gap: 1px;
-  padding: 2px;
-  border-radius: 8px;
+  padding: 1px;
+  border-radius: 7px;
   border: 1px solid rgba(115, 211, 255, 0.35);
   background: rgba(5, 9, 16, 0.9);
 }
 
 .size-btn {
-  width: 30px;
-  height: 30px;
+  width: 22px;
+  height: 24px;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: 5px;
   background: transparent;
   color: #F1F5F9;
   display: inline-flex;
@@ -3735,18 +4104,20 @@ body.mode-bar .modal-backdrop {
 }
 
 .size-btn svg {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
 }
 
 .size-btn.size-full {
   border: 1px solid rgba(115, 211, 255, 0.35);
+  width: 26px;
+  height: 26px;
 }
 
 .size-label {
-  min-width: 58px;
+  min-width: 38px;
   text-align: center;
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 800;
   color: #CBD5E1;
 }

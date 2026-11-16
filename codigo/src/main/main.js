@@ -48,7 +48,7 @@ const ActionExecutor = require('./actionExecutor');
 const LocalAiService = require('./localAiService');
 const AiDocuments = require('./aiDocuments');
 const importHelper = require('./importHelper');
-const { nearestCorner, cornerBounds, pickDisplay, edgeDockSide, barBounds } = require('./cornerSnap');
+const { nearestCorner, cornerBounds, pickDisplay, edgeDockSide, barBounds, BAR_SIZE } = require('./cornerSnap');
 
 const CODE_DIR = path.resolve(__dirname, '..', '..');
 const ROOT_DIR = path.resolve(CODE_DIR, '..');
@@ -91,7 +91,7 @@ if (!gotTheLock) {
   });
 }
 
-const MINI_DEFAULT_SIZE = { width: 576, height: 220 };
+const MINI_DEFAULT_SIZE = { width: 486, height: 210 };
 let miniDragTimer = null;
 let miniDragMoved = false;
 let miniSnapTimer = null;
@@ -118,7 +118,7 @@ function saveUi(patch) {
 
 // Redimensionar pela borda: o processo principal acompanha o cursor (como no arrastar),
 // sem ida e volta com a tela a cada movimento. A borda oposta fica parada.
-const RESIZE_MIN = { width: 576, height: 600 };
+const RESIZE_MIN = { width: 300, height: 320 };
 let miniResizeTimer = null;
 let miniResizeSafety = null;
 
@@ -182,13 +182,30 @@ function endMiniResize() {
   logDebug(`[MINI RESIZE] ${size.width}x${size.height}`);
 }
 
+// Barra na borda: recolhida mostra so o icone (56 px + 3 px de cada lado); clicar abre o resto em cascata
+const BAR_COLLAPSED = { width: 62, height: 62 };
+let barExpanded = false;
+function currentBarSize() {
+  return barExpanded ? BAR_SIZE : BAR_COLLAPSED;
+}
+
+function setBarExpanded(expanded) {
+  if (!mainWindow || mainWindow.isDestroyed() || windowMode !== 'barra') return { ok: false, expanded: false };
+  barExpanded = Boolean(expanded);
+  const b = mainWindow.getBounds();
+  const wa = screen.getDisplayMatching(b).workArea;
+  mainWindow.setBounds(barBounds(dockSide, b.y, wa, currentBarSize()));
+  return { ok: true, expanded: barExpanded };
+}
+
 function enterBar(side, y, display) {
   if (!mainWindow || mainWindow.isDestroyed()) return { mode: 'barra', side };
   const b = mainWindow.getBounds();
   const disp = display || screen.getDisplayMatching(b);
   const wa = disp.workArea;
   const finalSide = side || (b.x + b.width / 2 < wa.x + wa.width / 2 ? 'left' : 'right');
-  const target = barBounds(finalSide, typeof y === 'number' ? y : b.y, wa);
+  barExpanded = false;
+  const target = barBounds(finalSide, typeof y === 'number' ? y : b.y, wa, BAR_COLLAPSED);
   windowMode = 'barra';
   dockSide = finalSide;
   fullRestoreBounds = null;
@@ -324,6 +341,44 @@ function getSavedMiniCorner() {
   return (cfg && cfg.ui && cfg.ui.miniCorner) || null;
 }
 
+function getSavedFreePos() {
+  const cfg = configManager.get();
+  return (cfg && cfg.ui && cfg.ui.freePos) || null;
+}
+
+function resetMiniLayout() {
+  if (!mainWindow || mainWindow.isDestroyed()) return { ok: false };
+  stopMiniDrag();
+  stopMiniResize();
+  if (miniSnapTimer) {
+    clearInterval(miniSnapTimer);
+    miniSnapTimer = null;
+  }
+  const b = mainWindow.getBounds();
+  const disp = screen.getDisplayMatching(b);
+  const wa = disp.workArea;
+  windowMode = 'normal';
+  dockSide = null;
+  fullRestoreBounds = null;
+  bubbleRestoreBounds = null;
+  const w = Math.min(MINI_DEFAULT_SIZE.width, wa.width);
+  const h = Math.min(MINI_DEFAULT_SIZE.height, wa.height);
+  const x = wa.x + Math.round((wa.width - w) / 2);
+  const y = wa.y + Math.round((wa.height - h) / 3);
+  try {
+    const cfg = configManager.get();
+    const nextUi = Object.assign({}, cfg.ui || {}, { miniCorner: null, dock: null });
+    delete nextUi.freePos;
+    delete nextUi.chatSize;
+    configManager.save({ ui: nextUi });
+  } catch (err) {
+    logDebug(`[RESET LAYOUT FAILED] ${err.message}`);
+  }
+  mainWindow.setBounds({ x, y, width: w, height: h });
+  sendWindowMode('simples');
+  return { ok: true, x, y, width: w, height: h };
+}
+
 function animateMiniTo(target) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   if (miniSnapTimer) clearInterval(miniSnapTimer);
@@ -351,14 +406,18 @@ function animateMiniTo(target) {
   }, 16);
 }
 
-function snapMiniToNearestCorner() {
+function saveFreePosition() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   const b = mainWindow.getBounds();
   const display = screen.getDisplayMatching(b);
-  const corner = nearestCorner(b, display.workArea);
-  animateMiniTo(cornerBounds(corner, { width: b.width, height: b.height }, display.workArea));
-  saveUi({ miniCorner: { corner, displayId: display.id }, dock: null });
-  logDebug(`[MINI CORNER] ${corner} display=${display.id}`);
+  const wa = display.workArea;
+  const x = Math.max(wa.x, Math.min(b.x, wa.x + wa.width - Math.min(b.width, wa.width)));
+  const y = Math.max(wa.y, Math.min(b.y, wa.y + wa.height - Math.min(b.height, wa.height)));
+  if (x !== b.x || y !== b.y) {
+    mainWindow.setBounds({ x, y, width: b.width, height: b.height });
+  }
+  saveUi({ freePos: { x, y, displayId: display.id }, miniCorner: null, dock: null });
+  logDebug(`[MINI FREE POS] x=${x} y=${y} display=${display.id}`);
 }
 
 function endMiniDrag() {
@@ -377,13 +436,13 @@ function endMiniDrag() {
 
   const cursor = screen.getCursorScreenPoint();
   const display = screen.getDisplayNearestPoint(cursor);
-  const side = edgeDockSide(cursor.x, display.workArea);
+  const side = edgeDockSide(cursor.x, display.workArea, 18);
   if (side) {
     const res = enterBar(side, mainWindow.getBounds().y, display);
     sendWindowMode(res.mode, res.side);
     return;
   }
-  snapMiniToNearestCorner();
+  saveFreePosition();
 }
 
 function stopMiniDrag() {
@@ -425,7 +484,7 @@ function startMiniDrag() {
         sendWindowMode('simples');
         return;
       }
-      mainWindow.setBounds(barBounds(dockSide, p.y - offY, wa));
+      mainWindow.setBounds(barBounds(dockSide, p.y - offY, wa, currentBarSize()));
       return;
     }
 
@@ -448,8 +507,8 @@ function resizeMiniWindow({ width, height, keepRight = false } = {}) {
   const b = mainWindow.getBounds();
   const display = screen.getDisplayMatching(b);
   const wa = display.workArea;
-  const w = Math.max(260, Math.min(Math.round(width), wa.width));
-  const h = Math.max(120, Math.min(Math.round(height), wa.height));
+  const w = Math.max(72, Math.min(Math.round(width), wa.width));
+  const h = Math.max(72, Math.min(Math.round(height), wa.height));
   const saved = getSavedMiniCorner();
   if (saved && !miniDragTimer) {
     mainWindow.setBounds(cornerBounds(saved.corner, { width: w, height: h }, wa));
@@ -475,14 +534,20 @@ async function summonMiniAssistant({ x, y, source = 'mouse-hook', openChat = fal
 
   stopMiniDrag();
 
-  // Ao abrir pela bandeja ou ao ligar, volta como barra se ela estava encostada na lateral.
+  // Ao abrir pela bandeja ou ao ligar, volta como barra se ela estava encostada na lateral (exceto em --self-test).
   const savedDock = (configManager.get().ui || {}).dock;
-  const restoreBar = savedDock && !openChat && !openSettings && ['startup', 'tray-click', 'executable'].includes(source);
+  const restoreBar =
+    savedDock &&
+    !process.argv.includes('--self-test') &&
+    !openChat &&
+    !openSettings &&
+    ['startup', 'tray-click', 'executable'].includes(source);
   if (restoreBar) {
     const disp = pickDisplay(screen.getAllDisplays(), screen.getPrimaryDisplay().id, savedDock.displayId);
     windowMode = 'barra';
     dockSide = savedDock.side;
-    mainWindow.setBounds(barBounds(savedDock.side, savedDock.y, disp.workArea));
+    barExpanded = false;
+    mainWindow.setBounds(barBounds(savedDock.side, savedDock.y, disp.workArea, BAR_COLLAPSED));
     mainWindow.show();
     mainWindow.setAlwaysOnTop(true, 'screen-saver');
     mainWindow.webContents.send('mpe:mini-assistant-summoned', {
@@ -515,7 +580,8 @@ async function summonMiniAssistant({ x, y, source = 'mouse-hook', openChat = fal
   winY = Math.max(wa.y, Math.min(winY, wa.y + wa.height - h));
 
   const savedCorner = getSavedMiniCorner();
-  if (savedDock && !savedCorner) {
+  const savedFreePos = getSavedFreePos();
+  if (savedDock && !savedCorner && !savedFreePos) {
     // Barra salva, mas aberto pelo atalho: abre a janela encostada no lado da barra.
     const disp = pickDisplay(screen.getAllDisplays(), screen.getPrimaryDisplay().id, savedDock.displayId);
     const dwa = disp.workArea;
@@ -527,6 +593,11 @@ async function summonMiniAssistant({ x, y, source = 'mouse-hook', openChat = fal
     const placed = cornerBounds(savedCorner.corner, { width: w, height: h }, display.workArea);
     winX = placed.x;
     winY = placed.y;
+  } else if (savedFreePos && source !== 'mouse-hook') {
+    const display = pickDisplay(screen.getAllDisplays(), screen.getPrimaryDisplay().id, savedFreePos.displayId);
+    const dwa = display.workArea;
+    winX = Math.max(dwa.x, Math.min(savedFreePos.x, dwa.x + dwa.width - w));
+    winY = Math.max(dwa.y, Math.min(savedFreePos.y, dwa.y + dwa.height - h));
   }
   mainWindow.setBounds({ x: Math.round(winX), y: Math.round(winY), width: w, height: h });
 
@@ -1073,7 +1144,9 @@ function setupIpcHandlers() {
   });
   ipcMain.on('mpe:mini-resize', (_e, size) => resizeMiniWindow(size));
   ipcMain.on('mpe:mini-resize-start', (_e, edge) => startMiniResize(edge));
+  ipcMain.handle('mpe:bar-expand', (_e, expanded) => setBarExpanded(expanded));
   ipcMain.on('mpe:mini-resize-end', () => endMiniResize());
+  ipcMain.handle('mpe:reset-mini-layout', () => resetMiniLayout());
 
   ipcMain.handle('mpe:hide-hud', () => {
     stopMiniDrag();
