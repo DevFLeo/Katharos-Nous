@@ -116,6 +116,72 @@ function saveUi(patch) {
   }
 }
 
+// Redimensionar pela borda: o processo principal acompanha o cursor (como no arrastar),
+// sem ida e volta com a tela a cada movimento. A borda oposta fica parada.
+const RESIZE_MIN = { width: 576, height: 600 };
+let miniResizeTimer = null;
+let miniResizeSafety = null;
+
+function stopMiniResize() {
+  if (miniResizeTimer) clearInterval(miniResizeTimer);
+  if (miniResizeSafety) clearTimeout(miniResizeSafety);
+  miniResizeTimer = null;
+  miniResizeSafety = null;
+}
+
+function startMiniResize(edge) {
+  if (!mainWindow || mainWindow.isDestroyed() || windowMode !== 'normal') return;
+  const e = String(edge || '');
+  if (!/^(l|r|b|bl|br)$/.test(e)) return;
+  stopMiniDrag();
+  stopMiniResize();
+  if (miniSnapTimer) {
+    clearInterval(miniSnapTimer);
+    miniSnapTimer = null;
+  }
+  const start = screen.getCursorScreenPoint();
+  const b0 = mainWindow.getBounds();
+  const wa = screen.getDisplayMatching(b0).workArea;
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
+  miniResizeTimer = setInterval(() => {
+    if (!mainWindow || mainWindow.isDestroyed()) return stopMiniResize();
+    const p = screen.getCursorScreenPoint();
+    const dx = p.x - start.x;
+    const dy = p.y - start.y;
+    let width = b0.width;
+    let height = b0.height;
+    if (e.includes('r')) width = b0.width + dx;
+    if (e.includes('l')) width = b0.width - dx;
+    if (e.includes('b')) height = b0.height + dy;
+    width = clamp(Math.round(width), RESIZE_MIN.width, wa.width);
+    height = clamp(Math.round(height), RESIZE_MIN.height, wa.height);
+    let x = e.includes('l') ? b0.x + b0.width - width : b0.x;
+    let y = b0.y;
+    x = clamp(x, wa.x, wa.x + wa.width - width);
+    y = clamp(y, wa.y, wa.y + wa.height - height);
+    const cur = mainWindow.getBounds();
+    if (cur.x !== x || cur.y !== y || cur.width !== width || cur.height !== height) {
+      mainWindow.setBounds({ x, y, width, height });
+    }
+  }, 8);
+  miniResizeSafety = setTimeout(() => endMiniResize(), 60000);
+}
+
+function endMiniResize() {
+  if (!miniResizeTimer) return;
+  stopMiniResize();
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const b = mainWindow.getBounds();
+  const size = { width: b.width, height: b.height };
+  // O canto salvo passa a ser o mais proximo da janela no novo tamanho
+  const display = screen.getDisplayMatching(b);
+  const corner = nearestCorner(b, display.workArea);
+  const saved = getSavedMiniCorner();
+  saveUi(Object.assign({ chatSize: size }, saved ? { miniCorner: { corner, displayId: display.id } } : {}));
+  mainWindow.webContents.send('mpe:chat-size', size);
+  logDebug(`[MINI RESIZE] ${size.width}x${size.height}`);
+}
+
 function enterBar(side, y, display) {
   if (!mainWindow || mainWindow.isDestroyed()) return { mode: 'barra', side };
   const b = mainWindow.getBounds();
@@ -374,7 +440,7 @@ function startMiniDrag() {
 
 function resizeMiniWindow({ width, height, keepRight = false } = {}) {
   if (!mainWindow || typeof width !== 'number' || typeof height !== 'number') return;
-  if (windowMode !== 'normal') return;
+  if (windowMode !== 'normal' || miniResizeTimer) return;
   if (miniSnapTimer) {
     clearInterval(miniSnapTimer);
     miniSnapTimer = null;
@@ -649,6 +715,18 @@ function createWindow() {
       e.preventDefault();
       mainWindow.hide();
     }
+  });
+
+  // Escondida, a tela pode dormir; visivel, roda sem freio (o mascote e os atalhos respondem na hora)
+  mainWindow.on('hide', () => {
+    try {
+      mainWindow.webContents.setBackgroundThrottling(true);
+    } catch (_) {}
+  });
+  mainWindow.on('show', () => {
+    try {
+      mainWindow.webContents.setBackgroundThrottling(false);
+    } catch (_) {}
   });
 
   mainWindow.webContents.on('before-input-event', (_event, input) => {
@@ -994,6 +1072,8 @@ function setupIpcHandlers() {
     return Object.assign({ ok: true }, res);
   });
   ipcMain.on('mpe:mini-resize', (_e, size) => resizeMiniWindow(size));
+  ipcMain.on('mpe:mini-resize-start', (_e, edge) => startMiniResize(edge));
+  ipcMain.on('mpe:mini-resize-end', () => endMiniResize());
 
   ipcMain.handle('mpe:hide-hud', () => {
     stopMiniDrag();

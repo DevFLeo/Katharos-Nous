@@ -169,7 +169,13 @@ class KatarosMascot3D {
     this.energy += (this.targetEnergy - this.energy) * Math.min(1, dt * 8);
     this.time += dt * this.speedFactor;
 
-    this.draw();
+    // Menos quadros quando nao esta processando: 30 por segundo; 10 no modo mascote parado
+    const idleBubble = !this.isProcessing && document.body.classList.contains('mode-bubble') && !document.body.classList.contains('kn-busy');
+    const minGap = this.isProcessing || this.energy > 0.05 ? 0 : idleBubble ? 100 : 33;
+    if (!this.lastDrawTs || ts - this.lastDrawTs >= minGap - 2) {
+      this.lastDrawTs = ts;
+      this.draw();
+    }
     this.rafId = requestAnimationFrame(this.animate);
   }
 

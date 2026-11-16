@@ -550,6 +550,8 @@ class LocalAiService {
   }
 
   async warmUp() {
+    this.startIdleWatch();
+    this.markLlmUse();
     const aiCfg = this.getAiConfig();
     if (aiCfg.provider === 'offline' || this.isExternalProvider(aiCfg)) return;
     this.engine.ensureStarted(aiCfg).catch(() => {});
@@ -559,6 +561,8 @@ class LocalAiService {
    * Garante o motor pronto. wait=false nao bloqueia (usa fallback enquanto carrega).
    */
   async ensureEngine({ wait = true, onStatus } = {}) {
+    this.startIdleWatch();
+    this.markLlmUse();
     const aiCfg = this.getAiConfig();
     if (aiCfg.provider === 'offline') return false;
     if (this.isExternalProvider(aiCfg)) return true;
@@ -581,13 +585,61 @@ class LocalAiService {
   }
 
   shutdown() {
+    if (this.idleTimer) clearInterval(this.idleTimer);
+    this.idleTimer = null;
     this.engine.stop();
   }
 
   // =========================================================================
   // CHAMADA AO LLM (OpenAI-compativel, com streaming)
   // =========================================================================
-  callChat(messages, { temperature, maxTokens, topP, repeatPenalty, presencePenalty, onChunk } = {}) {
+  // =========================================================================
+  // MODELO SOB DEMANDA: descarrega o llamafile depois de ai.idleUnloadMinutes sem uso
+  // (padrao 10; 0 = nunca). A proxima pergunta carrega de novo.
+  // =========================================================================
+  markLlmUse() {
+    this.lastLlmUseAt = Date.now();
+  }
+
+  startIdleWatch() {
+    if (this.idleTimer) return;
+    if (!this.lastLlmUseAt) this.markLlmUse();
+    this.idleTimer = setInterval(() => this.checkIdle(), 60000);
+    if (this.idleTimer.unref) this.idleTimer.unref();
+  }
+
+  checkIdle(now = Date.now()) {
+    const mins = Number((this.getAiConfig() || {}).idleUnloadMinutes);
+    const limit = Number.isFinite(mins) ? mins : 10;
+    if (limit <= 0 || (this.llmInflight || 0) > 0) return false;
+    // So descarrega o motor que o proprio Katharos ligou (nao mexe em Ollama/LM Studio externos)
+    if (!this.engine.child || this.engine.state !== 'online') return false;
+    if (now - (this.lastLlmUseAt || 0) < limit * 60000) return false;
+    this.engine.stopAsync(3000).catch(() => {});
+    return true;
+  }
+
+  callChat(messages, opts = {}) {
+    this.startIdleWatch();
+    this.markLlmUse();
+    this.llmInflight = (this.llmInflight || 0) + 1;
+    const done = () => {
+      this.llmInflight = Math.max(0, this.llmInflight - 1);
+      this.markLlmUse();
+    };
+    return Promise.resolve(this.callChatRaw(messages, opts)).then(
+      (r) => {
+        done();
+        return r;
+      },
+      (err) => {
+        done();
+        throw err;
+      }
+    );
+  }
+
+  callChatRaw(messages, { temperature, maxTokens, topP, repeatPenalty, presencePenalty, onChunk } = {}) {
     const aiCfg = this.getAiConfig();
     const memParams = this.memory.load().params;
     const url = new URL(this.chatUrl(aiCfg));

@@ -716,6 +716,8 @@
       const sideDrawer = document.getElementById('side-chat-drawer');
       if (!card || !window.mpeApi.miniResize) return;
       const zoom = document.body.classList.contains('large-text') ? 1.25 : 1;
+      const chosen = (currentConfig && currentConfig.ui && currentConfig.ui.chatSize) || null;
+      document.body.classList.toggle('kn-user-size', Boolean(chosen));
       const rect = card.getBoundingClientRect();
       const cardH = Math.ceil(rect.height) || 198;
       const cardW = Math.max(Math.ceil(rect.width), card.scrollWidth * zoom, 560);
@@ -723,28 +725,29 @@
       const drawerOpen = sideDrawer && !sideDrawer.classList.contains('hidden');
       const cmdsOpen = sideDrawer && sideDrawer.classList.contains('cmds-open');
       const hasOpenModal = document.querySelectorAll('.modal-backdrop:not(.hidden)').length > 0;
-      // Altura do chat: 546px (626px com comandos), reduzida para a janela caber na tela, inclusive com letras grandes.
-      let drawerH = cmdsOpen ? 626 : 546;
-      const userSize = (currentConfig && currentConfig.ui && currentConfig.ui.chatSize) || null;
-      const liveSize = window.__knLiveChatSize || null;
-      const chosen = liveSize || userSize;
-      if (chosen && drawerOpen) drawerH = Math.round(chosen.height / zoom) + (cmdsOpen ? 80 : 0);
       const availH = (window.screen && window.screen.availHeight) || 0;
+      const availW = (window.screen && window.screen.availWidth) || 4000;
+      if (hasOpenModal) {
+        window.mpeApi.miniResize({ width: Math.round(820 * zoom), height: Math.round(660 * zoom) });
+        return;
+      }
+      if (chosen) {
+        // Tamanho escolhido pela borda: a janela fica desse tamanho e a tela se ajusta dentro dela (CSS).
+        const w = Math.min(availW, Math.max(576, chosen.width));
+        const h = drawerOpen ? Math.min(availH || chosen.height, Math.max(600, chosen.height)) : cardH + 16;
+        window.mpeApi.miniResize({ width: w, height: h });
+        return;
+      }
+      // Automatico: 546px de chat (626px com comandos), reduzido para caber na tela
+      let drawerH = cmdsOpen ? 626 : 546;
       if (availH > 0) {
         const maxDrawer = Math.floor((availH - 8 - cardH - 16) / zoom) - 14;
         drawerH = Math.max(220, Math.min(drawerH, maxDrawer));
       }
       document.documentElement.style.setProperty('--side-drawer-h', `${drawerH}px`);
-      const availW = (window.screen && window.screen.availWidth) || 4000;
-      const width = hasOpenModal
-        ? Math.round(820 * zoom)
-        : chosen && drawerOpen
-        ? Math.min(availW, Math.max(cardW + 16, Math.round(chosen.width)))
-        : cardW + 16;
-      const height = hasOpenModal
-        ? Math.round(660 * zoom)
-        : cardH + 16 + (drawerOpen ? Math.round((drawerH + 14) * zoom) : 0);
-      window.mpeApi.miniResize({ width, height, keepRight: Boolean(window.__knLiveChatSize && window.__knKeepRight) });
+      const width = cardW + 16;
+      const height = cardH + 16 + (drawerOpen ? Math.round((drawerH + 14) * zoom) : 0);
+      window.mpeApi.miniResize({ width, height });
     }
     syncMiniWindowSizeRef = syncMiniWindowSize;
 
@@ -754,51 +757,25 @@
       if (!drawer) return;
       // Os pegadores ficam presos a borda da janela do chat inteira
       drawer.querySelectorAll('.kn-grip').forEach((g) => drawer.appendChild(g));
-      let drag = null;
-      let raf = 0;
-      const apply = () => {
-        raf = 0;
-        syncMiniWindowSize();
+      let active = false;
+      const end = () => {
+        if (!active) return;
+        active = false;
+        document.body.classList.remove('kn-resizing');
+        if (window.mpeApi.miniResizeEnd) window.mpeApi.miniResizeEnd();
       };
       drawer.querySelectorAll('.kn-grip').forEach((grip) => {
         grip.addEventListener('pointerdown', (e) => {
-          if (e.button !== 0) return;
+          if (e.button !== 0 || !window.mpeApi.miniResizeStart) return;
           e.preventDefault();
-          const rect = drawer.getBoundingClientRect();
-          const zoom = document.body.classList.contains('large-text') ? 1.25 : 1;
-          drag = { kind: grip.dataset.grip, x: e.screenX, y: e.screenY, w: window.outerWidth, h: rect.height * zoom };
           grip.setPointerCapture(e.pointerId);
+          active = true;
           document.body.classList.add('kn-resizing');
+          window.mpeApi.miniResizeStart(grip.dataset.grip);
         });
-        grip.addEventListener('pointermove', (e) => {
-          if (!drag) return;
-          const dx = e.screenX - drag.x;
-          const dy = e.screenY - drag.y;
-          const k = drag.kind;
-          let w = drag.w;
-          let h = drag.h;
-          if (k === 'r' || k === 'br') w = drag.w + dx;
-          if (k === 'l' || k === 'bl') w = drag.w - dx;
-          if (k === 'b' || k === 'bl' || k === 'br') h = drag.h + dy;
-          window.__knLiveChatSize = { width: Math.max(576, Math.round(w)), height: Math.max(260, Math.round(h)) };
-          window.__knKeepRight = k === 'l' || k === 'bl';
-          if (!raf) raf = requestAnimationFrame(apply);
-        });
-        const end = async () => {
-          if (!drag) return;
-          drag = null;
-          document.body.classList.remove('kn-resizing');
-          const size = window.__knLiveChatSize;
-          window.__knLiveChatSize = null;
-          if (!size || !currentConfig) return;
-          currentConfig.ui = Object.assign({}, currentConfig.ui || {}, { chatSize: size });
-          syncMiniWindowSize();
-          try {
-            await window.mpeApi.saveConfig(currentConfig);
-          } catch (_) {}
-        };
         grip.addEventListener('pointerup', end);
         grip.addEventListener('pointercancel', end);
+        grip.addEventListener('lostpointercapture', end);
         grip.addEventListener('dblclick', async () => {
           if (!currentConfig || !currentConfig.ui) return;
           delete currentConfig.ui.chatSize;
@@ -809,6 +786,13 @@
           showToast('Tamanho do chat voltou ao automatico.');
         });
       });
+      if (window.mpeApi.onChatSize) {
+        window.mpeApi.onChatSize((size) => {
+          if (!currentConfig) return;
+          currentConfig.ui = Object.assign({}, currentConfig.ui || {}, { chatSize: size });
+          document.body.classList.add('kn-user-size');
+        });
+      }
     })();
 
     function setupMiniAssistant() {

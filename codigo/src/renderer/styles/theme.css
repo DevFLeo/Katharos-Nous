@@ -547,3 +547,22 @@ body.mode-bubble.bubble-left .kn-bubble-say { right: auto; left: calc(100% + 10p
 
 /* Segurando o mascote: o anel cresce para mostrar que vai minimizar */
 .mini-node-ring.kn-holding { transition: box-shadow 0.6s ease, transform 0.6s ease; box-shadow: 0 0 0 6px rgba(115, 243, 255, 0.35), 0 0 22px rgba(229, 184, 75, 0.5) !important; transform: scale(0.96); }
+
+/* Tamanho escolhido pela borda: a janela manda e a tela se ajusta dentro dela */
+body.large-text { --kn-zoom: 1.25; }
+body.kn-user-size:not(.mode-full):not(.mode-bubble):not(.mode-bar) .mini-sci-hud {
+  width: calc(100vw / var(--kn-zoom, 1) - 16px) !important;
+  max-width: none !important;
+}
+body.mode-mini-assistant.kn-user-size:not(.mode-full):not(.mode-bubble) .side-chat-drawer {
+  height: auto !important;
+  bottom: 8px !important;
+}
+body.kn-resizing .side-chat-drawer { transition: none !important; }
+@media (min-width: 1000px) {
+  body.kn-user-size .side-chat-messages,
+  body.kn-user-size .side-chat-input-bar {
+    padding-left: max(16px, calc((100% - 960px) / 2)) !important;
+    padding-right: max(16px, calc((100% - 960px) / 2)) !important;
+  }
+}

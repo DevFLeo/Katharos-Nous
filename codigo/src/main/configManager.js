@@ -84,6 +84,7 @@ class ConfigManager {
         contextSize: 4096,
         gpuLayers: 'auto',
         boostMode: 'balanced',
+        idleUnloadMinutes: 10,
         apiKey: '',
         timeoutMs: 30000,
         useObsidianContext: true,
@@ -199,6 +200,10 @@ class ConfigManager {
     if (!rootData.ai.contextSize) rootData.ai.contextSize = 4096;
     if (!['eco', 'balanced', 'turbo'].includes(rootData.ai.boostMode)) {
       rootData.ai.boostMode = 'balanced';
+    }
+    {
+      const mins = Number(rootData.ai.idleUnloadMinutes);
+      rootData.ai.idleUnloadMinutes = Number.isFinite(mins) ? Math.max(0, Math.min(240, Math.round(mins))) : 10;
     }
 
     rootData.ui = Object.assign({}, defaults.ui, rootData.ui || {});

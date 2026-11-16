@@ -1031,6 +1031,32 @@ async function main() {
     assert.ok(/function enterBubble/.test(mainJs) && /mode === 'mascote'/.test(mainJs), 'modo mascote no processo principal');
     assert.ok(/clearCache\(\)/.test(mainJs) && /CommandOrControl\+Shift\+Q/.test(mainJs) && /Shift\+Alt\+Escape/.test(mainJs), 'fechar totalmente limpando o cache');
   });
+  await runCase('Visual', 'V14', 'modelo descarrega sozinho depois de minutos sem uso; redimensionar pelo processo principal', () => {
+    const svc = Object.create(LocalAiService.prototype);
+    let stopped = 0;
+    let cfg = { idleUnloadMinutes: 10 };
+    svc.getAiConfig = () => cfg;
+    svc.engine = { child: {}, state: 'online', stopAsync: async () => { stopped++; } };
+    svc.lastLlmUseAt = 1000;
+    svc.llmInflight = 0;
+    assert.strictEqual(svc.checkIdle(1000 + 9 * 60000), false, 'antes de 10 min nao descarrega');
+    svc.llmInflight = 1;
+    assert.strictEqual(svc.checkIdle(1000 + 11 * 60000), false, 'nao descarrega com pergunta em andamento');
+    svc.llmInflight = 0;
+    assert.strictEqual(svc.checkIdle(1000 + 11 * 60000), true);
+    assert.strictEqual(stopped, 1);
+    cfg = { idleUnloadMinutes: 0 };
+    assert.strictEqual(svc.checkIdle(1000 + 999 * 60000), false, '0 = nunca');
+    svc.engine = { child: null, state: 'external', stopAsync: async () => { stopped++; } };
+    cfg = { idleUnloadMinutes: 1 };
+    assert.strictEqual(svc.checkIdle(1000 + 99 * 60000), false, 'nao mexe em motor externo');
+    const mainJs = fs.readFileSync(path.join(CODE_DIR, 'src', 'main', 'main.js'), 'utf8');
+    assert.ok(/function startMiniResize/.test(mainJs) && /mpe:mini-resize-start/.test(mainJs) && /miniResizeTimer\) return;/.test(mainJs), 'redimensionar pelo processo principal');
+    const tmpCfgDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kn-idle-'));
+    fs.writeFileSync(path.join(tmpCfgDir, 'mpe.config.json'), JSON.stringify({ ai: { idleUnloadMinutes: 'x' } }));
+    assert.strictEqual(new ConfigManager(tmpCfgDir, tmpCfgDir).get().ai.idleUnloadMinutes, 10);
+    fs.rmSync(tmpCfgDir, { recursive: true, force: true });
+  });
   //@@ROTAS_NEXT@@
 
   const passed = results.filter((r) => r.status === 'PASS').length;
