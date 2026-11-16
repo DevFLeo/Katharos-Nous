@@ -13,12 +13,14 @@ const SKIP_DIRS = new Set(['node_modules', '.git', '.obsidian', 'Historico']);
 // Nome que aparece na tela para cada categoria (a pasta continua sem acento)
 const CATEGORY_LABEL = {
   Extratos: 'Extratos', Recibos: 'Recibos', Comprovantes: 'Comprovantes', Contratos: 'Contratos',
-  Financeiro: 'Contas e boletos', Curriculos: 'Currículos', PDFs: 'PDFs', Codigos: 'Códigos', Modelos: 'Modelos', Geral: 'Geral'
+  Financeiro: 'Contas e boletos', Saude: 'Saúde', Estudos: 'Estudos', Garantias: 'Garantias e notas',
+  Curriculos: 'Currículos', PDFs: 'PDFs', Codigos: 'Códigos', Modelos: 'Modelos', Geral: 'Geral'
 };
 // Frase curta de "Parece ..." para texto colado
 const CATEGORY_PHRASE = {
   Extratos: 'um extrato do banco', Recibos: 'um recibo', Comprovantes: 'um comprovante', Contratos: 'um contrato',
-  Financeiro: 'uma conta ou boleto', Curriculos: 'um currículo', Codigos: 'um código'
+  Financeiro: 'uma conta ou boleto', Saude: 'um exame ou receita', Estudos: 'material de estudo',
+  Garantias: 'uma nota fiscal ou garantia', Codigos: 'um código'
 };
 
 function isSupported(filePath) {

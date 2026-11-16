@@ -10,7 +10,7 @@ const ObsidianIndex = require('./obsidianIndex');
  * - Extrai saldos, entradas, saidas, curriculos, codigos e texto de .PDF (incl. FlateDecode), .OFX, .CSV, .TXT, .MD, .JSON
  */
 
-const CATEGORIES = ['Extratos', 'Recibos', 'Comprovantes', 'Contratos', 'Financeiro', 'Curriculos', 'PDFs', 'Codigos', 'Modelos', 'Geral'];
+const CATEGORIES = ['Extratos', 'Recibos', 'Comprovantes', 'Contratos', 'Financeiro', 'Saude', 'Estudos', 'Garantias', 'Curriculos', 'PDFs', 'Codigos', 'Modelos', 'Geral'];
 const AUTO_INDEX_EXTENSIONS = new Set([
   '.pdf', '.ofx', '.qfx', '.csv', '.tsv', '.txt', '.md', '.json',
   '.js', '.ts', '.py', '.cs', '.ps1', '.sql', '.sh', '.html', '.css'
@@ -105,6 +105,16 @@ function detectCategory(title = '', text = '', ext = '') {
     /(curriculo|curriculum|resume|\bcv\b|experiencia profissional|formacao academica|habilidades tecnicas|linkedin)/.test(sample)
   ) {
     return 'Curriculos';
+  }
+  // Saude, estudos e garantias: o Katharos e para qualquer pessoa, nao so para quem procura emprego
+  if (/(exame|laudo|hemograma|receita medica|receituario|prescricao|consulta medica|\bcrm\b|posologia|resultado de exame|vacina)/.test(sample)) {
+    return 'Saude';
+  }
+  if (/(apostila|aula\b|prova\b|faculdade|disciplina|semestre|exercicios|trabalho escolar|escola|curso\b|materia\b)/.test(sample)) {
+    return 'Estudos';
+  }
+  if (/(garantia|nota fiscal de compra|certificado de garantia|danfe|cupom fiscal)/.test(sample)) {
+    return 'Garantias';
   }
   if (/(comprovante|pix|ted|doc|transferencia|autenticacao)/.test(sample)) {
     return 'Comprovantes';

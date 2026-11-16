@@ -2242,7 +2242,10 @@
         const sugg = [];
         if (cats.has('extratos')) sugg.push(['Qual meu saldo?', 'qual meu saldo?']);
         if (cats.has('contratos')) sugg.push(['O que diz o contrato?', '/pdf contrato ']);
-        if (cats.has('curriculos')) sugg.push(['Resumo do currículo', '/curriculo resumo das minhas experiencias']);
+        if (cats.has('financeiro')) sugg.push(['Quando vence a conta?', 'quando vence a conta?']);
+        if (cats.has('saude')) sugg.push(['O que diz meu exame?', '/pdf exame ']);
+        if (cats.has('estudos')) sugg.push(['Resumo da apostila', '/resumir apostila ']);
+        if (cats.has('garantias')) sugg.push(['Até quando vale a garantia?', 'ate quando vale a garantia?']);
         if (cats.has('codigos')) sugg.push(['Explicar um código', '/codigo explicar ']);
         if (docs.length) sugg.push(['Quantos documentos tenho?', 'quantos documentos eu tenho?']);
         if (sugg.length) {
@@ -2327,7 +2330,8 @@
 
         const tips = [
           'Comece com @nota para guardar sem passar pela I.A.',
-          'Use /curriculo para perguntar sobre o seu currículo.',
+          'Traga um exame ou receita e pergunte o que diz.',
+          'Guarde a nota fiscal: depois pergunte até quando vale a garantia.',
           'Use /pdf e um tema para perguntar sobre um PDF guardado.',
           'Use /codigo para pedir, explicar ou revisar um trecho de código.',
           'Depois de trazer um extrato, pergunte "qual meu saldo?".',

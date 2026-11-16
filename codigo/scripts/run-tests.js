@@ -1089,6 +1089,20 @@ async function main() {
     const b = barBounds('right', 100, { x: 0, y: 0, width: 1920, height: 1040 }, { width: 62, height: 62 });
     assert.deepStrictEqual(b, { x: 1858, y: 100, width: 62, height: 62 });
   });
+  await runCase('Visual', 'V16', 'pastas para qualquer pessoa: saude, estudos, garantias e contas; curriculo so por comando', () => {
+    const AiDocs = require('../src/main/aiDocuments');
+    assert.strictEqual(AiDocs.detectCategory('hemograma', 'resultado de exame', ''), 'Saude');
+    assert.strictEqual(AiDocs.detectCategory('apostila', 'aula 3 de matematica', ''), 'Estudos');
+    assert.strictEqual(AiDocs.detectCategory('nota', 'certificado de garantia de 12 meses', ''), 'Garantias');
+    assert.strictEqual(AiDocs.detectCategory('conta de luz', 'boleto vencimento 10/12', ''), 'Financeiro');
+    const importHelper = require('../src/main/importHelper');
+    assert.strictEqual(importHelper.recognizeText('Resultado de exame: hemograma completo, hemoglobina 14').label, 'Saúde');
+    assert.strictEqual(importHelper.recognizeText('Experiencia profissional e formacao academica em sistemas'), null, 'curriculo nao aparece ao colar');
+    const html = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'index.html'), 'utf8');
+    const appJs = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'js', 'app.js'), 'utf8');
+    assert.ok(!/curr[ií]culo/i.test(html) && !/curr[ií]culo/i.test(appJs), 'curriculo fora da tela');
+    ['value="Saude"', 'value="Estudos"', 'value="Garantias"', 'Contas e boletos'].forEach((t) => assert.ok(html.includes(t), `faltou ${t}`));
+  });
   //@@ROTAS_NEXT@@
 
   const passed = results.filter((r) => r.status === 'PASS').length;
