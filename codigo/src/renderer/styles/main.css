@@ -1310,7 +1310,7 @@ body.mode-mini-assistant {
   background: transparent !important;
 }
 
-body.mode-mini-assistant:not(.mode-full):not(.kn-modal-open) {
+body.mode-mini-assistant:not(.mode-full):not(.mode-bubble):not(.kn-modal-open) {
   zoom: var(--kn-ui-zoom, 1);
 }
 

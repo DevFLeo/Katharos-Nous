@@ -772,19 +772,10 @@
 
       card.classList.toggle('dock-lateral', Boolean(layoutState.lateral));
       card.classList.toggle('cascade-mode', Boolean(layoutState.cascade) && !drawerOpen);
-      card.classList.toggle('is-floating-custom', isFull && Boolean(layoutState.floating));
-
-      if (isFull && layoutState.floating) {
-        const cx = Math.max(4, Math.min(window.innerWidth - 70, Number(layoutState.x) || 14));
-        const cy = Math.max(4, Math.min(window.innerHeight - 70, Number(layoutState.y) || 12));
-        layoutState.x = cx;
-        layoutState.y = cy;
-        card.style.setProperty('--float-x', `${cx}px`);
-        card.style.setProperty('--float-y', `${cy}px`);
-      } else {
-        card.style.removeProperty('--float-x');
-        card.style.removeProperty('--float-y');
-      }
+      layoutState.floating = false;
+      card.classList.remove('is-floating-custom');
+      card.style.removeProperty('--float-x');
+      card.style.removeProperty('--float-y');
 
       const targetW = layoutState.lateral
         ? Math.max(drawerOpen ? 310 : 240, Math.min(480, Number(layoutState.customWLateral) || 280))
@@ -1123,31 +1114,8 @@
         if (!handle) return;
         handle.addEventListener('pointerdown', (e) => {
           if (e.button !== 0 || e.target.closest('button, input, textarea')) return;
+          if (document.body.classList.contains('mode-full')) return;
           e.preventDefault();
-          if (document.body.classList.contains('mode-full') && card && handle !== document.getElementById('bar-drag-handle')) {
-            const startX = e.clientX;
-            const startY = e.clientY;
-            const rect = card.getBoundingClientRect();
-            let moved = false;
-            const onMove = (ev) => {
-              const dx = ev.clientX - startX;
-              const dy = ev.clientY - startY;
-              if (!moved && Math.hypot(dx, dy) > 5) moved = true;
-              if (!moved) return;
-              layoutState.floating = true;
-              layoutState.x = Math.round(Math.max(4, Math.min(window.innerWidth - 70, rect.left + dx)));
-              layoutState.y = Math.round(Math.max(4, Math.min(window.innerHeight - 70, rect.top + dy)));
-              applyMiniLayoutState();
-            };
-            const onUp = () => {
-              window.removeEventListener('pointermove', onMove);
-              window.removeEventListener('pointerup', onUp);
-              if (moved) persistLayoutState();
-            };
-            window.addEventListener('pointermove', onMove);
-            window.addEventListener('pointerup', onUp);
-            return;
-          }
           handle.setPointerCapture(e.pointerId);
           if (window.mpeApi.miniDragStart) window.mpeApi.miniDragStart();
         });
@@ -1159,9 +1127,11 @@
         handle.addEventListener('lostpointercapture', endDrag);
       });
 
-      // Duplo clique no icone do mascote restaura posicao e tamanho padrao
-      if (mascotNode) {
-        mascotNode.addEventListener('dblclick', async (e) => {
+      // Duplo clique no cabecalho restaura posicao e tamanho padrao
+      const miniDragHdr = document.getElementById('mini-drag-handle');
+      if (miniDragHdr) {
+        miniDragHdr.addEventListener('dblclick', async (e) => {
+          if (e.target.closest('button, input, textarea')) return;
           e.preventDefault();
           e.stopPropagation();
           layoutState = Object.assign({}, layoutDefaults);
@@ -1548,12 +1518,44 @@
         }
       }
 
+      function applyBubbleLayout(layout) {
+        const root = document.documentElement.style;
+        if (!document.body.classList.contains('mode-bubble')) {
+          root.removeProperty('--kn-bubble-x');
+          root.removeProperty('--kn-bubble-y');
+          document.body.classList.remove('bubble-near-top', 'bubble-near-bottom', 'bubble-near-left', 'bubble-near-right');
+          return;
+        }
+        const lx = layout && typeof layout.localX === 'number' ? layout.localX : 4;
+        const ly = layout && typeof layout.localY === 'number' ? layout.localY : 4;
+        root.setProperty('--kn-bubble-x', `${lx}px`);
+        root.setProperty('--kn-bubble-y', `${ly}px`);
+        const expanded = Boolean(layout && layout.expanded);
+        document.body.classList.toggle('bubble-near-top', expanded && ly < 56);
+        document.body.classList.toggle('bubble-near-bottom', expanded && ly > 82);
+        document.body.classList.toggle('bubble-near-left', expanded && lx < 56);
+        document.body.classList.toggle('bubble-near-right', expanded && lx > 82);
+      }
+
+      if (window.mpeApi.onBubbleLayout) {
+        window.mpeApi.onBubbleLayout((layout) => applyBubbleLayout(layout));
+      }
+
       function applyWindowMode(mode, side) {
         const isBubble = mode === 'mascote';
         document.body.classList.toggle('mode-bubble', isBubble);
         document.body.classList.toggle('bubble-left', isBubble && side === 'left');
-        if (!isBubble) knBubbleSay('');
+        if (!isBubble) {
+          knBubbleSay('');
+          applyBubbleLayout(null);
+        }
         if (isBubble) {
+          document.body.classList.remove('mode-full', 'mode-bar', 'bar-collapsed', 'chat-open');
+          if (barEl) barEl.classList.add('hidden');
+          if (sideDrawer) sideDrawer.classList.add('hidden');
+          applyMiniLayoutState();
+          applyBubbleLayout({ expanded: false, localX: 4, localY: 4 });
+          if (katarosMascot) katarosMascot.resume();
           updateSizeUi();
           return;
         }
@@ -1639,13 +1641,48 @@
         requestWindowMode(currentWindowMode() === 'cheia' ? 'grande' : 'cheia');
       });
 
-      // ===== Modo mascote: segurar no mascote minimiza; ESC durante uma pergunta tambem =====
+      // ===== Modo mascote: clicar no mascote minimiza; hover expande radial sem sair do canto =====
+      let bubbleHoverTimer = null;
+      const bubbleHudEl = document.querySelector('.mini-sci-hud');
+      if (bubbleHudEl && window.mpeApi.bubbleExpand) {
+        bubbleHudEl.addEventListener('mouseenter', async () => {
+          if (!document.body.classList.contains('mode-bubble')) return;
+          if (bubbleHoverTimer) { clearTimeout(bubbleHoverTimer); bubbleHoverTimer = null; }
+          try {
+            const res = await window.mpeApi.bubbleExpand(true);
+            if (res && res.ok) applyBubbleLayout(res);
+          } catch (_) {}
+        });
+        bubbleHudEl.addEventListener('mouseleave', () => {
+          if (!document.body.classList.contains('mode-bubble')) return;
+          if (bubbleHoverTimer) clearTimeout(bubbleHoverTimer);
+          bubbleHoverTimer = setTimeout(async () => {
+            bubbleHoverTimer = null;
+            if (!document.body.classList.contains('mode-bubble')) return;
+            if (bubbleHudEl.matches(':hover')) return;
+            const sayEl = document.getElementById('kn-bubble-say');
+            if (sayEl && !sayEl.classList.contains('hidden')) return;
+            try {
+              const res = await window.mpeApi.bubbleExpand(false);
+              if (res && res.ok) applyBubbleLayout(res);
+            } catch (_) {}
+          }, 180);
+        });
+      }
+
       function knBubbleSay(text, kind) {
         const say = document.getElementById('kn-bubble-say');
         if (!say) return;
         say.textContent = text || '';
         say.classList.toggle('hidden', !text);
         say.classList.toggle('is-answer', kind === 'answer');
+        if (document.body.classList.contains('mode-bubble') && window.mpeApi.bubbleExpand) {
+          if (text) {
+            window.mpeApi.bubbleExpand(true).then((res) => { if (res && res.ok) applyBubbleLayout(res); }).catch(() => {});
+          } else if (bubbleHudEl && !bubbleHudEl.matches(':hover')) {
+            window.mpeApi.bubbleExpand(false).then((res) => { if (res && res.ok) applyBubbleLayout(res); }).catch(() => {});
+          }
+        }
       }
       knBubbleSayRef = knBubbleSay;
       knEnterBubbleRef = () => requestWindowMode('mascote');
@@ -1665,18 +1702,24 @@
       const knSay = document.getElementById('kn-bubble-say');
       if (knSay) knSay.addEventListener('click', () => knLeaveBubble(''));
 
-      // Segurar (sem arrastar) por 0,6 s no mascote alterna entre janela e so o mascote
+      // Clique no mascote minimiza para icone solto (ou reabre); arrastar move livremente sem prender em bordas
       [document.querySelector('.mini-node-ring'), document.getElementById('bar-drag-handle')].forEach((node) => {
         if (!node) return;
         let hold = null;
-        const cancel = () => {
+        let clickState = null;
+        const cancelHold = () => {
           if (hold) clearTimeout(hold.timer);
           hold = null;
           node.classList.remove('kn-holding');
         };
         node.addEventListener('pointerdown', (e) => {
           if (e.button !== 0 || e.target.closest('button, input, textarea')) return;
-          cancel();
+          if (bubbleHoverTimer) { clearTimeout(bubbleHoverTimer); bubbleHoverTimer = null; }
+          cancelHold();
+          const isMascotRing = node.id === 'kataros-mascot-node';
+          if (isMascotRing) {
+            clickState = { x: e.screenX, y: e.screenY, moved: false, holdFired: false };
+          }
           node.classList.add('kn-holding');
           hold = {
             x: e.screenX,
@@ -1684,6 +1727,7 @@
             timer: setTimeout(async () => {
               hold = null;
               node.classList.remove('kn-holding');
+              if (clickState) clickState.holdFired = true;
               if (window.mpeApi.miniDragEnd) window.mpeApi.miniDragEnd();
               if (currentWindowMode() === 'mascote') knLeaveBubble('');
               else requestWindowMode('mascote');
@@ -1691,10 +1735,24 @@
           };
         });
         node.addEventListener('pointermove', (e) => {
-          if (hold && (Math.abs(e.screenX - hold.x) > 6 || Math.abs(e.screenY - hold.y) > 6)) cancel();
+          if (clickState && (Math.abs(e.screenX - clickState.x) > 5 || Math.abs(e.screenY - clickState.y) > 5)) {
+            clickState.moved = true;
+          }
+          if (hold && (Math.abs(e.screenX - hold.x) > 6 || Math.abs(e.screenY - hold.y) > 6)) cancelHold();
         });
-        node.addEventListener('pointerup', cancel);
-        node.addEventListener('pointercancel', cancel);
+        node.addEventListener('pointerup', () => {
+          cancelHold();
+          const st = clickState;
+          clickState = null;
+          if (st && (!st.moved || currentWindowMode() === 'cheia') && !st.holdFired) {
+            if (currentWindowMode() === 'mascote') knLeaveBubble('');
+            else requestWindowMode('mascote');
+          }
+        });
+        node.addEventListener('pointercancel', () => {
+          cancelHold();
+          clickState = null;
+        });
       });
 
       ['ia', 'local'].forEach((route) => {

@@ -1114,6 +1114,22 @@ async function main() {
     assert.strictEqual(short, 'Qwen2.5-7B');
     assert.strictEqual(KnInsights.categoryLabel('Financeiro'), 'Contas e boletos');
   });
+  await runCase('Visual', 'V18', 'clique no mascote minimiza como icone solto sem prender em bordas, com fundo visivel e sem barra nativa Win32', () => {
+    const mainJs = fs.readFileSync(path.join(CODE_DIR, 'src', 'main', 'main.js'), 'utf8');
+    const appJs = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'js', 'app.js'), 'utf8');
+    const theme = fs.readFileSync(path.join(CODE_DIR, 'src', 'renderer', 'styles', 'theme.css'), 'utf8');
+    assert.ok(appJs.includes('clickState') && appJs.includes("currentWindowMode() === 'mascote'"), 'clique simples no mascote deve alternar modo icone solto');
+    const endDragBlock = mainJs.slice(mainJs.indexOf('function endMiniDrag()'), mainJs.indexOf('function stopMiniDrag()'));
+    assert.ok(endDragBlock.includes('saveFreePosition()') && !endDragBlock.includes('enterBar(') && !endDragBlock.includes('snapMiniToNearestCorner('), 'arrastar nao pode prender em bordas ou cantos');
+    assert.ok(mainJs.includes('BUBBLE_SIZE = { width: 74, height: 74 }'), 'janela do icone minimizado compacta para encostar nos cantos');
+    assert.ok(mainJs.includes('BUBBLE_MASCOT_OFFSET') && mainJs.includes('NORMAL_MASCOT_OFFSET'), 'ancoragem no ponto atual do mascote');
+    assert.ok(mainJs.includes('thickFrame: false') && mainJs.includes('minimizable: false') && mainJs.includes('maximizable: false'), 'BrowserWindow sem moldura nativa Win32');
+    assert.ok(mainJs.includes('BAR_EXPANDED = { width: 72, height: 336 }'), 'barra expandida compacta sem espaco vazio');
+    assert.ok(/body\.mode-bubble\s*\.kataros-label-box\s*\{\s*display:\s*none\s*!important/.test(theme), 'icone minimizado nao deve exibir rotulo Pronto');
+    assert.ok(/body\.mode-bubble\s*\.mini-node-ring\s*\{[^}]*width:\s*66px\s*!important[^}]*height:\s*66px\s*!important[^}]*border-radius:\s*12px\s*!important[^}]*rgba\(16,\s*24,\s*38/.test(theme) && /\.bar-mascot\s*\{[^}]*rgba\(16,\s*24,\s*38/.test(theme), 'icone minimizado precisa fundo escuro translucido e formato quadrado com borda');
+    assert.ok(appJs.includes("document.body.classList.remove('mode-full', 'mode-bar', 'bar-collapsed', 'chat-open')"), 'minimizar da tela cheia deve limpar mode-full e chat-open');
+    assert.ok(appJs.includes("if (document.body.classList.contains('mode-full')) return;"), 'tela cheia nao pode permitir arrastar o icone solto dentro da janela');
+  });
   //@@ROTAS_NEXT@@
 
   const passed = results.filter((r) => r.status === 'PASS').length;

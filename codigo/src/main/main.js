@@ -99,7 +99,7 @@ let miniSnapTimer = null;
 let windowMode = 'normal';
 let dockSide = null;
 let fullRestoreBounds = null;
-const UNDOCK_DISTANCE = 140;
+const UNDOCK_DISTANCE = 36;
 
 function sendWindowMode(mode, side) {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -182,11 +182,12 @@ function endMiniResize() {
   logDebug(`[MINI RESIZE] ${size.width}x${size.height}`);
 }
 
-// Barra na borda: recolhida mostra so o icone (56 px + 3 px de cada lado); clicar abre o resto em cascata
+// Barra na borda: recolhida mostra so o icone (56 px + 3 px de cada lado); clicar abre o resto em cascata sem espaco vazio
 const BAR_COLLAPSED = { width: 62, height: 62 };
+const BAR_EXPANDED = { width: 72, height: 336 };
 let barExpanded = false;
 function currentBarSize() {
-  return barExpanded ? BAR_SIZE : BAR_COLLAPSED;
+  return barExpanded ? BAR_EXPANDED : BAR_COLLAPSED;
 }
 
 function setBarExpanded(expanded) {
@@ -266,9 +267,60 @@ function leaveFull() {
   mainWindow.setBounds(back);
 }
 
-// Modo mascote: so o mascote fica na tela (segurar no mascote ou ESC durante uma pergunta)
-const BUBBLE_SIZE = { width: 380, height: 260 };
+// Modo mascote: icone solto e quadrado na tela (clicar minimiza; encosta em qualquer canto sem sobras)
+const BUBBLE_SIZE = { width: 74, height: 74 };
+const BUBBLE_EXPANDED_SIZE = { width: 204, height: 204 };
+const BUBBLE_MASCOT_OFFSET = { x: 4, y: 4 };
+const NORMAL_MASCOT_OFFSET = { x: 8, y: 8 };
 let bubbleRestoreBounds = null;
+let bubbleExpanded = false;
+let bubbleMascotScreenPos = null;
+
+function computeBubbleLayout(wa, mx, my, expanded) {
+  if (!expanded) {
+    const x = Math.max(wa.x, Math.min(Math.round(mx - BUBBLE_MASCOT_OFFSET.x), wa.x + wa.width - BUBBLE_SIZE.width));
+    const y = Math.max(wa.y, Math.min(Math.round(my - BUBBLE_MASCOT_OFFSET.y), wa.y + wa.height - BUBBLE_SIZE.height));
+    return {
+      expanded: false,
+      x,
+      y,
+      width: BUBBLE_SIZE.width,
+      height: BUBBLE_SIZE.height,
+      localX: BUBBLE_MASCOT_OFFSET.x,
+      localY: BUBBLE_MASCOT_OFFSET.y
+    };
+  }
+  const margin = Math.round((BUBBLE_EXPANDED_SIZE.width - 66) / 2);
+  const expX = Math.max(wa.x, Math.min(Math.round(mx - margin), wa.x + wa.width - BUBBLE_EXPANDED_SIZE.width));
+  const expY = Math.max(wa.y, Math.min(Math.round(my - margin), wa.y + wa.height - BUBBLE_EXPANDED_SIZE.height));
+  return {
+    expanded: true,
+    x: expX,
+    y: expY,
+    width: BUBBLE_EXPANDED_SIZE.width,
+    height: BUBBLE_EXPANDED_SIZE.height,
+    localX: Math.round(mx - expX),
+    localY: Math.round(my - expY)
+  };
+}
+
+function setBubbleExpanded(expanded) {
+  if (!mainWindow || mainWindow.isDestroyed() || windowMode !== 'mascote') {
+    return { ok: false };
+  }
+  const next = Boolean(expanded);
+  if (next && miniDragTimer) return { ok: false };
+  const b = mainWindow.getBounds();
+  if (!bubbleMascotScreenPos || !bubbleExpanded) {
+    bubbleMascotScreenPos = { x: b.x + BUBBLE_MASCOT_OFFSET.x, y: b.y + BUBBLE_MASCOT_OFFSET.y };
+  }
+  const wa = screen.getDisplayMatching(b).workArea;
+  const layout = computeBubbleLayout(wa, bubbleMascotScreenPos.x, bubbleMascotScreenPos.y, next);
+  bubbleExpanded = layout.expanded;
+  mainWindow.setBounds({ x: layout.x, y: layout.y, width: layout.width, height: layout.height });
+  mainWindow.webContents.send('mpe:bubble-layout', layout);
+  return Object.assign({ ok: true }, layout);
+}
 
 function enterBubble() {
   if (!mainWindow || mainWindow.isDestroyed()) return { mode: 'mascote', side: null };
@@ -280,14 +332,16 @@ function enterBubble() {
     miniSnapTimer = null;
   }
   const wa = screen.getDisplayMatching(b).workArea;
-  // O mascote fica onde estava: o centro da bolha cai sobre o centro do mascote
   const right = b.x + b.width / 2 > wa.x + wa.width / 2;
-  let x = right ? b.x + b.width - BUBBLE_SIZE.width : b.x;
-  let y = b.y;
-  x = Math.max(wa.x, Math.min(x, wa.x + wa.width - BUBBLE_SIZE.width));
-  y = Math.max(wa.y, Math.min(y, wa.y + wa.height - BUBBLE_SIZE.height));
+  // Mantem o icone exatamente no ponto atual do mascote (sem pular para cantos/bordas)
+  const mx = b.x + NORMAL_MASCOT_OFFSET.x;
+  const my = b.y + NORMAL_MASCOT_OFFSET.y;
+  const layout = computeBubbleLayout(wa, mx, my, false);
+  bubbleExpanded = false;
+  bubbleMascotScreenPos = { x: layout.x + BUBBLE_MASCOT_OFFSET.x, y: layout.y + BUBBLE_MASCOT_OFFSET.y };
   windowMode = 'mascote';
-  mainWindow.setBounds({ x, y, width: BUBBLE_SIZE.width, height: BUBBLE_SIZE.height });
+  mainWindow.setBounds({ x: layout.x, y: layout.y, width: layout.width, height: layout.height });
+  mainWindow.webContents.send('mpe:bubble-layout', layout);
   return { mode: 'mascote', side: right ? 'right' : 'left' };
 }
 
@@ -296,11 +350,18 @@ function leaveBubble() {
   const b = mainWindow.getBounds();
   const wa = screen.getDisplayMatching(b).workArea;
   const back = bubbleRestoreBounds || { x: b.x, y: b.y, width: MINI_DEFAULT_SIZE.width, height: MINI_DEFAULT_SIZE.height };
+  const anchorPos = bubbleExpanded && bubbleMascotScreenPos
+    ? bubbleMascotScreenPos
+    : { x: b.x + BUBBLE_MASCOT_OFFSET.x, y: b.y + BUBBLE_MASCOT_OFFSET.y };
   bubbleRestoreBounds = null;
+  bubbleExpanded = false;
+  bubbleMascotScreenPos = null;
   windowMode = 'normal';
-  const x = Math.max(wa.x, Math.min(back.x, wa.x + wa.width - back.width));
-  const y = Math.max(wa.y, Math.min(back.y, wa.y + wa.height - back.height));
-  mainWindow.setBounds({ x, y, width: back.width, height: back.height });
+  const anchorX = anchorPos.x - NORMAL_MASCOT_OFFSET.x;
+  const anchorY = anchorPos.y - NORMAL_MASCOT_OFFSET.y;
+  const x = Math.max(wa.x, Math.min(anchorX, wa.x + wa.width - back.width));
+  const y = Math.max(wa.y, Math.min(anchorY, wa.y + wa.height - back.height));
+  mainWindow.setBounds({ x: Math.round(x), y: Math.round(y), width: back.width, height: back.height });
 }
 
 // Fecha tudo (motor de I.A incluido) e limpa o cache da janela; reabrir pelo Katharos.exe
@@ -416,6 +477,9 @@ function saveFreePosition() {
   if (x !== b.x || y !== b.y) {
     mainWindow.setBounds({ x, y, width: b.width, height: b.height });
   }
+  if (windowMode === 'mascote') {
+    bubbleMascotScreenPos = { x: x + BUBBLE_MASCOT_OFFSET.x, y: y + BUBBLE_MASCOT_OFFSET.y };
+  }
   saveUi({ freePos: { x, y, displayId: display.id }, miniCorner: null, dock: null });
   logDebug(`[MINI FREE POS] x=${x} y=${y} display=${display.id}`);
 }
@@ -434,14 +498,7 @@ function endMiniDrag() {
     return;
   }
 
-  const cursor = screen.getCursorScreenPoint();
-  const display = screen.getDisplayNearestPoint(cursor);
-  const side = edgeDockSide(cursor.x, display.workArea, 18);
-  if (side) {
-    const res = enterBar(side, mainWindow.getBounds().y, display);
-    sendWindowMode(res.mode, res.side);
-    return;
-  }
+  // Flutuacao solta: nao prende nas bordas nem nos cantos da tela
   saveFreePosition();
 }
 
@@ -458,6 +515,9 @@ function startMiniDrag() {
   if (miniSnapTimer) {
     clearInterval(miniSnapTimer);
     miniSnapTimer = null;
+  }
+  if (windowMode === 'mascote' && bubbleExpanded) {
+    setBubbleExpanded(false);
   }
   const start = screen.getCursorScreenPoint();
   const [wx, wy] = mainWindow.getPosition();
@@ -626,9 +686,13 @@ function createWindow() {
     x: 0,
     y: 0,
     frame: false,
+    thickFrame: false,
     transparent: true,
     resizable: false,
     movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
     alwaysOnTop: true,
     skipTaskbar: false,
     hasShadow: false,
@@ -1145,6 +1209,7 @@ function setupIpcHandlers() {
   ipcMain.on('mpe:mini-resize', (_e, size) => resizeMiniWindow(size));
   ipcMain.on('mpe:mini-resize-start', (_e, edge) => startMiniResize(edge));
   ipcMain.handle('mpe:bar-expand', (_e, expanded) => setBarExpanded(expanded));
+  ipcMain.handle('mpe:bubble-expand', (_e, expanded) => setBubbleExpanded(expanded));
   ipcMain.on('mpe:mini-resize-end', () => endMiniResize());
   ipcMain.handle('mpe:reset-mini-layout', () => resetMiniLayout());
 

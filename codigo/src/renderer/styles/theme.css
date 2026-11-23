@@ -158,8 +158,13 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
   border: 1px solid var(--kn-line-2) !important;
   border-radius: 999px !important;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
+  top: 0 !important; left: 0 !important; right: 0 !important; bottom: auto !important;
+  height: auto !important;
+  padding: 8px 6px !important;
+  gap: 8px !important;
+  justify-content: flex-start !important;
 }
-.bar-mascot { width: 56px !important; height: 56px !important; border: 0 !important; background: transparent !important; box-shadow: none !important; border-radius: 999px !important; display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer; }
+.bar-mascot { width: 56px !important; height: 56px !important; border: 1.5px solid rgba(229, 184, 75, 0.55) !important; background: radial-gradient(circle, rgba(16, 24, 38, 0.90) 0%, rgba(7, 11, 18, 0.94) 100%) !important; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.62), 0 0 14px rgba(229, 184, 75, 0.25) !important; border-radius: 999px !important; display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer; }
 .bar-mascot-canvas { width: 56px; height: 56px; pointer-events: none; }
 .bar-status { color: var(--kn-gold) !important; letter-spacing: 0 !important; font-size: 12px !important; }
 .bar-btn {
@@ -532,13 +537,49 @@ body.mode-bubble { background: transparent !important; }
 body.mode-bubble .mini-capsule-card,
 body.mode-bubble .side-chat-drawer,
 body.mode-bubble .kataros-bar { display: none !important; }
+body.mode-bubble .kataros-label-box { display: none !important; }
 body.mode-bubble .mini-assistant-overlay { inset: 0; padding: 0; }
-body.mode-bubble .mini-sci-hud { position: absolute; top: 76px; right: 70px; width: auto !important; max-width: none !important; animation: none; }
-body.mode-bubble.bubble-left .mini-sci-hud { right: auto; left: 70px; }
+body.mode-bubble .mini-sci-hud {
+  position: absolute;
+  top: var(--kn-bubble-y, 4px);
+  left: var(--kn-bubble-x, 4px);
+  right: auto;
+  width: auto !important;
+  max-width: none !important;
+  animation: none;
+}
+body.mode-bubble.bubble-left .mini-sci-hud { right: auto; left: var(--kn-bubble-x, 4px); }
 body.mode-bubble .kn-bubble-ui { display: block; position: absolute; inset: 0; pointer-events: none; }
-body.mode-bubble .mini-node-ring { position: relative; z-index: 2; }
+@keyframes kn-bubble-in {
+  0% { opacity: 0; transform: scale(0.84); }
+  100% { opacity: 1; transform: scale(1); }
+}
+body.mode-bubble .mini-node-ring {
+  position: relative;
+  z-index: 2;
+  width: 66px !important;
+  height: 66px !important;
+  min-width: 66px !important;
+  padding: 4px !important;
+  gap: 0 !important;
+  border-radius: 12px !important;
+  background: radial-gradient(circle at 50% 42%, rgba(16, 24, 38, 0.92) 0%, rgba(7, 11, 18, 0.95) 100%) !important;
+  border: 1.5px solid rgba(229, 184, 75, 0.65) !important;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.62), 0 0 14px rgba(229, 184, 75, 0.28) !important;
+  animation: kn-bubble-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease !important;
+}
+body.mode-bubble .kataros-mascot-canvas {
+  width: 56px !important;
+  height: 56px !important;
+}
+body.mode-bubble .mini-sci-hud:hover .mini-node-ring {
+  transform: scale(1.05);
+  border-color: var(--kn-gold) !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.72), 0 0 24px rgba(229, 184, 75, 0.48) !important;
+}
 
-.kn-bubble-ring { position: absolute; width: 150px; height: 150px; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-90deg); }
+.kn-bubble-ring { position: absolute; width: 112px; height: 112px; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-90deg); }
 .kn-ring-bg { fill: none; stroke: transparent; stroke-width: 5; }
 .kn-ring-fg { fill: none; stroke: var(--kn-cyan-hi); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 0 440; opacity: 0; }
 body.kn-busy .kn-ring-fg { opacity: 1; }
@@ -551,28 +592,38 @@ body.kn-busy .kn-ring-fg { animation: kn-ring-fill 2.4s ease-in-out infinite; }
 }
 
 .kn-bubble-btn {
-  position: absolute; width: 48px; height: 48px; border-radius: 999px; padding: 0;
+  position: absolute; width: 44px; height: 44px; border-radius: 12px; padding: 0;
   display: flex; align-items: center; justify-content: center; cursor: pointer;
   border: 1px solid var(--kn-line-2); background: var(--kn-panel); color: var(--route-color, var(--kn-cyan-hi));
-  opacity: 0; transform: scale(0.8); transition: opacity 0.15s ease, transform 0.15s ease; pointer-events: auto; z-index: 3;
+  opacity: 0; transform: scale(0.7) translateY(6px);
+  transition: opacity 0.2s ease, transform 0.26s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.16s ease, box-shadow 0.16s ease;
+  pointer-events: auto; z-index: 3;
 }
-.kn-bubble-btn svg { width: 20px; height: 20px; }
-.kn-b-ask { --route-color: var(--kn-ask); left: 17px; top: -62px; }
-.kn-b-find { --route-color: var(--kn-find); left: -60px; top: 104px; }
-.kn-b-keep { --route-color: var(--kn-keep); right: -60px; top: 104px; }
+.kn-bubble-btn svg { width: 19px; height: 19px; }
+.kn-b-ask { --route-color: var(--kn-ask); left: 11px; top: -52px; transition-delay: 0ms; }
+.kn-b-find { --route-color: var(--kn-find); left: -52px; top: 72px; transition-delay: 45ms; }
+.kn-b-keep { --route-color: var(--kn-keep); right: -52px; top: 72px; transition-delay: 90ms; }
+body.mode-bubble.bubble-near-top .kn-b-ask { top: 74px; }
+body.mode-bubble.bubble-near-left .kn-b-find { left: 74px; top: 11px; }
+body.mode-bubble.bubble-near-right .kn-b-keep { right: 74px; top: 11px; }
+body.mode-bubble.bubble-near-bottom .kn-b-find { top: 11px; }
+body.mode-bubble.bubble-near-bottom .kn-b-keep { top: 11px; }
 body.mode-bubble .mini-sci-hud:hover .kn-bubble-btn,
-body.mode-bubble .mini-sci-hud:focus-within .kn-bubble-btn { opacity: 1; transform: scale(1); }
-.kn-bubble-btn:hover { border-color: var(--route-color); }
+body.mode-bubble .mini-sci-hud:focus-within .kn-bubble-btn { opacity: 1; transform: scale(1) translateY(0); }
+.kn-bubble-btn:hover { border-color: var(--route-color); box-shadow: 0 0 14px color-mix(in srgb, var(--route-color) 45%, transparent); }
 body.mode-bubble .kn-bubble-ui { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
 
 .kn-bubble-say {
-  position: absolute; top: -58px; right: calc(100% + 10px); width: 200px; max-height: 128px; overflow: hidden;
-  padding: 10px 12px; border-radius: 16px 4px 16px 16px; text-align: left; cursor: pointer; pointer-events: auto;
+  position: absolute; top: -52px; left: 50%; transform: translateX(-50%); width: 184px; max-height: 112px; overflow: hidden;
+  padding: 10px 12px; border-radius: 14px; text-align: left; cursor: pointer; pointer-events: auto;
   background: var(--kn-panel); border: 1px solid var(--kn-line-2); color: var(--kn-text);
   font: inherit; font-size: 13px; line-height: 1.45; box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45); z-index: 4;
 }
 .kn-bubble-say.is-answer { border-color: #2E5A40; background: #0F2219; }
-body.mode-bubble.bubble-left .kn-bubble-say { right: auto; left: calc(100% + 10px); border-radius: 4px 16px 16px 16px; }
+body.mode-bubble.bubble-left .kn-bubble-say { left: 50%; right: auto; border-radius: 14px; }
+body.mode-bubble.bubble-near-top .kn-bubble-say { top: 74px; }
+body.mode-bubble.bubble-near-left .kn-bubble-say { left: 0; transform: none; }
+body.mode-bubble.bubble-near-right .kn-bubble-say { left: auto; right: 0; transform: none; }
 
 /* Segurando o mascote: o anel cresce para mostrar que vai minimizar */
 .mini-node-ring.kn-holding { transition: box-shadow 0.6s ease, transform 0.6s ease; box-shadow: 0 0 0 6px rgba(115, 243, 255, 0.35), 0 0 22px rgba(229, 184, 75, 0.5) !important; transform: scale(0.96); }
@@ -621,7 +672,7 @@ kbd {
   .kn-home-grid { grid-template-columns: 1fr; }
 }
 
-/* Barra recolhida: so o icone animado, janela do tamanho do icone + 3 px de cada lado */
+/* Barra recolhida: icone animado com fundo sutil para leitura em qualquer papel de parede */
 body.mode-bar.bar-collapsed .kataros-bar {
   padding: 3px !important; gap: 0 !important; border: 0 !important;
   background: transparent !important; box-shadow: none !important; border-radius: 999px !important;
