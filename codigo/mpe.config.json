@@ -2,10 +2,10 @@
   "profile": {
     "id": "default-katharos-profile",
     "name": "Perfil Principal Katharos Nous",
-    "userName": "",
+    "userName": "Operador",
     "isRegistered": true,
     "languageTone": "neutra",
-    "lastUpdated": "2026-11-14T17:58:30.135Z"
+    "lastUpdated": "2026-11-25T13:25:09.257Z"
   },
   "theme": {
     "preset": "katharos-scifi",
@@ -58,6 +58,7 @@
     "contextSize": 4096,
     "gpuLayers": "auto",
     "boostMode": "balanced",
+    "idleUnloadMinutes": 10,
     "apiKey": "",
     "timeoutMs": 30000,
     "useObsidianContext": true,
@@ -70,7 +71,38 @@
       "arch": "x64",
       "startWithWindows": true,
       "themePreset": "katharos-scifi",
-      "lastActive": "2026-11-14T17:58:30.135Z"
+      "lastActive": "2026-11-25T13:25:09.257Z"
+    },
+    "claude": {
+      "hostname": "claude",
+      "platform": "linux",
+      "arch": "x64",
+      "startWithWindows": true,
+      "themePreset": "katharos-scifi",
+      "lastActive": "2026-11-16T13:48:18.630Z"
     }
+  },
+  "ui": {
+    "defaultRoute": "ia",
+    "largeText": false,
+    "showCharts": true,
+    "miniCorner": null,
+    "dock": null,
+    "freePos": {
+      "x": 0,
+      "y": 0,
+      "displayId": 484818124
+    },
+    "chatSize": {
+      "width": 753,
+      "height": 852
+    }
+  },
+  "originSystem": {
+    "hwnd": "0",
+    "windowTitle": "Sistema Windows Ativo",
+    "windowRect": null,
+    "fullSnapPath": "",
+    "winSnapPath": ""
   }
 }

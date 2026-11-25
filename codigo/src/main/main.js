@@ -270,18 +270,21 @@ function leaveFull() {
 // Modo mascote: icone solto e quadrado na tela (clicar minimiza; encosta em qualquer canto sem sobras)
 const BUBBLE_SIZE = { width: 74, height: 74 };
 const BUBBLE_EXPANDED_SIZE = { width: 204, height: 204 };
+const BUBBLE_SAY_SIZE = { width: 376, height: 204 };
 const BUBBLE_MASCOT_OFFSET = { x: 4, y: 4 };
 const NORMAL_MASCOT_OFFSET = { x: 8, y: 8 };
 let bubbleRestoreBounds = null;
 let bubbleExpanded = false;
 let bubbleMascotScreenPos = null;
 
-function computeBubbleLayout(wa, mx, my, expanded) {
-  if (!expanded) {
+function computeBubbleLayout(wa, mx, my, expanded, withSay = false) {
+  if (!expanded && !withSay) {
     const x = Math.max(wa.x, Math.min(Math.round(mx - BUBBLE_MASCOT_OFFSET.x), wa.x + wa.width - BUBBLE_SIZE.width));
     const y = Math.max(wa.y, Math.min(Math.round(my - BUBBLE_MASCOT_OFFSET.y), wa.y + wa.height - BUBBLE_SIZE.height));
     return {
       expanded: false,
+      withSay: false,
+      saySide: 'right',
       x,
       y,
       width: BUBBLE_SIZE.width,
@@ -290,11 +293,34 @@ function computeBubbleLayout(wa, mx, my, expanded) {
       localY: BUBBLE_MASCOT_OFFSET.y
     };
   }
+  if (withSay) {
+    const winW = Math.min(BUBBLE_SAY_SIZE.width, wa.width);
+    const winH = Math.min(BUBBLE_SAY_SIZE.height, wa.height);
+    const spaceRight = (wa.x + wa.width) - (mx + 66);
+    const spaceLeft = mx - wa.x;
+    const saySide = spaceRight >= 294 || spaceRight >= spaceLeft ? 'right' : 'left';
+    const desiredX = saySide === 'right' ? mx - 12 : mx - (winW - 66 - 12);
+    const expX = Math.max(wa.x, Math.min(Math.round(desiredX), wa.x + wa.width - winW));
+    const expY = Math.max(wa.y, Math.min(Math.round(my - 12), wa.y + wa.height - winH));
+    return {
+      expanded: true,
+      withSay: true,
+      saySide,
+      x: expX,
+      y: expY,
+      width: winW,
+      height: winH,
+      localX: Math.round(mx - expX),
+      localY: Math.round(my - expY)
+    };
+  }
   const margin = Math.round((BUBBLE_EXPANDED_SIZE.width - 66) / 2);
   const expX = Math.max(wa.x, Math.min(Math.round(mx - margin), wa.x + wa.width - BUBBLE_EXPANDED_SIZE.width));
   const expY = Math.max(wa.y, Math.min(Math.round(my - margin), wa.y + wa.height - BUBBLE_EXPANDED_SIZE.height));
   return {
     expanded: true,
+    withSay: false,
+    saySide: 'right',
     x: expX,
     y: expY,
     width: BUBBLE_EXPANDED_SIZE.width,
@@ -304,18 +330,19 @@ function computeBubbleLayout(wa, mx, my, expanded) {
   };
 }
 
-function setBubbleExpanded(expanded) {
+function setBubbleExpanded(payload) {
   if (!mainWindow || mainWindow.isDestroyed() || windowMode !== 'mascote') {
     return { ok: false };
   }
-  const next = Boolean(expanded);
-  if (next && miniDragTimer) return { ok: false };
+  const next = typeof payload === 'object' && payload !== null ? Boolean(payload.expanded) : Boolean(payload);
+  const withSay = typeof payload === 'object' && payload !== null ? Boolean(payload.withSay) : false;
+  if ((next || withSay) && miniDragTimer) return { ok: false };
   const b = mainWindow.getBounds();
   if (!bubbleMascotScreenPos || !bubbleExpanded) {
     bubbleMascotScreenPos = { x: b.x + BUBBLE_MASCOT_OFFSET.x, y: b.y + BUBBLE_MASCOT_OFFSET.y };
   }
   const wa = screen.getDisplayMatching(b).workArea;
-  const layout = computeBubbleLayout(wa, bubbleMascotScreenPos.x, bubbleMascotScreenPos.y, next);
+  const layout = computeBubbleLayout(wa, bubbleMascotScreenPos.x, bubbleMascotScreenPos.y, next, withSay);
   bubbleExpanded = layout.expanded;
   mainWindow.setBounds({ x: layout.x, y: layout.y, width: layout.width, height: layout.height });
   mainWindow.webContents.send('mpe:bubble-layout', layout);

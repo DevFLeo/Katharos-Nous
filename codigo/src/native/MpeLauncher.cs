@@ -367,7 +367,13 @@ namespace MpeNative
 
                 string codigoDir = Path.Combine(baseDir.TrimEnd('\\'), "codigo");
                 string appDir = Directory.Exists(codigoDir) ? codigoDir : baseDir.TrimEnd('\\');
-                string electronExe = Path.Combine(appDir, "node_modules", "electron", "dist", "electron.exe");
+                // "Katharos Nous.exe" (gerado por scripts/brand-electron.mjs) faz o Windows mostrar o nome e o icone do Katharos
+                string distDir = Path.Combine(appDir, "node_modules", "electron", "dist");
+                string electronExe = Path.Combine(distDir, "Katharos Nous.exe");
+                if (!File.Exists(electronExe))
+                {
+                    electronExe = Path.Combine(distDir, "electron.exe");
+                }
                 if (!File.Exists(electronExe))
                 {
                     electronExe = Path.Combine(baseDir.TrimEnd('\\'), "node_modules", "electron", "dist", "electron.exe");

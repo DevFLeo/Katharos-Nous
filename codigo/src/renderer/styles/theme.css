@@ -613,17 +613,22 @@ body.mode-bubble .mini-sci-hud:focus-within .kn-bubble-btn { opacity: 1; transfo
 .kn-bubble-btn:hover { border-color: var(--route-color); box-shadow: 0 0 14px color-mix(in srgb, var(--route-color) 45%, transparent); }
 body.mode-bubble .kn-bubble-ui { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
 
+body.mode-bubble.bubble-say-open .kn-bubble-btn { display: none !important; }
+
 .kn-bubble-say {
-  position: absolute; top: -52px; left: 50%; transform: translateX(-50%); width: 184px; max-height: 112px; overflow: hidden;
-  padding: 10px 12px; border-radius: 14px; text-align: left; cursor: pointer; pointer-events: auto;
+  position: absolute; top: 0; left: 76px; right: auto; bottom: auto; transform: none;
+  width: 276px; min-height: 66px; max-height: 176px; overflow-y: auto; overflow-x: hidden;
+  padding: 10px 12px; border-radius: 12px; text-align: left; cursor: pointer; pointer-events: auto;
   background: var(--kn-panel); border: 1px solid var(--kn-line-2); color: var(--kn-text);
-  font: inherit; font-size: 13px; line-height: 1.45; box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45); z-index: 4;
+  font: inherit; font-size: 13px; line-height: 1.45; white-space: pre-wrap; word-break: break-word;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45); z-index: 4;
 }
 .kn-bubble-say.is-answer { border-color: #2E5A40; background: #0F2219; }
-body.mode-bubble.bubble-left .kn-bubble-say { left: 50%; right: auto; border-radius: 14px; }
-body.mode-bubble.bubble-near-top .kn-bubble-say { top: 74px; }
-body.mode-bubble.bubble-near-left .kn-bubble-say { left: 0; transform: none; }
-body.mode-bubble.bubble-near-right .kn-bubble-say { left: auto; right: 0; transform: none; }
+body.mode-bubble:not(.bubble-say-open) .kn-bubble-say { display: none !important; }
+body.mode-bubble.bubble-left .kn-bubble-say { left: 76px; right: auto; border-radius: 12px; }
+body.mode-bubble.bubble-say-left .kn-bubble-say,
+body.mode-bubble.bubble-left.bubble-say-left .kn-bubble-say { left: auto; right: 76px; }
+body.mode-bubble.bubble-near-bottom .kn-bubble-say { top: auto; bottom: 0; }
 
 /* Segurando o mascote: o anel cresce para mostrar que vai minimizar */
 .mini-node-ring.kn-holding { transition: box-shadow 0.6s ease, transform 0.6s ease; box-shadow: 0 0 0 6px rgba(115, 243, 255, 0.35), 0 0 22px rgba(229, 184, 75, 0.5) !important; transform: scale(0.96); }

@@ -13,9 +13,14 @@
     "start": "electron .",
     "open": "electron . --show",
     "test": "node scripts/run-tests.js",
-    "build:native": "powershell -ExecutionPolicy Bypass -File scripts/build-native.ps1"
+    "build:native": "powershell -ExecutionPolicy Bypass -File scripts/build-native.ps1",
+    "brand": "node scripts/brand-electron.mjs",
+    "postinstall": "node scripts/brand-electron.mjs --postinstall"
   },
   "dependencies": {
     "electron": "^35.0.0"
+  },
+  "devDependencies": {
+    "resedit": "^3.1.1"
   }
 }

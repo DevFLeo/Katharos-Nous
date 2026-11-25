@@ -2,6 +2,9 @@
  * Controlador da Interface Principal do Katharos Nous | katharos AI
  * - Mini Assistente Flutuante (Lower-Third Sci-Fi + Mascote 3D Giroscopio)
  * - Chat Lateral com IA Local (llamafile / Ollama / LM Studio / Motor Embutido ~2ms)
+ *  - Suporte a Prompting Avançado, Contexto de Conversa, Histórico e Prompts Recentes
+ * - Ideação provinda de documentos salvos anteriormente
+ * - Reconhecimento de Texto e Sugestão de Categoria para Documentos Financeiros
  * - Integracao com Obsidian Vault, Documentos Financeiros e Sistemas Externos
  */
 (function () {
@@ -1121,6 +1124,7 @@
         });
         const endDrag = () => {
           if (window.mpeApi.miniDragEnd) window.mpeApi.miniDragEnd();
+          if (document.body.classList.contains('mode-bubble')) syncBubbleExpand(false);
         };
         handle.addEventListener('pointerup', endDrag);
         handle.addEventListener('pointercancel', endDrag);
@@ -1523,7 +1527,14 @@
         if (!document.body.classList.contains('mode-bubble')) {
           root.removeProperty('--kn-bubble-x');
           root.removeProperty('--kn-bubble-y');
-          document.body.classList.remove('bubble-near-top', 'bubble-near-bottom', 'bubble-near-left', 'bubble-near-right');
+          document.body.classList.remove(
+            'bubble-near-top',
+            'bubble-near-bottom',
+            'bubble-near-left',
+            'bubble-near-right',
+            'bubble-say-open',
+            'bubble-say-left'
+          );
           return;
         }
         const lx = layout && typeof layout.localX === 'number' ? layout.localX : 4;
@@ -1531,14 +1542,30 @@
         root.setProperty('--kn-bubble-x', `${lx}px`);
         root.setProperty('--kn-bubble-y', `${ly}px`);
         const expanded = Boolean(layout && layout.expanded);
-        document.body.classList.toggle('bubble-near-top', expanded && ly < 56);
-        document.body.classList.toggle('bubble-near-bottom', expanded && ly > 82);
-        document.body.classList.toggle('bubble-near-left', expanded && lx < 56);
-        document.body.classList.toggle('bubble-near-right', expanded && lx > 82);
+        const withSay = Boolean(layout && layout.withSay);
+        document.body.classList.toggle('bubble-say-open', withSay);
+        document.body.classList.toggle('bubble-say-left', withSay && layout.saySide === 'left');
+        document.body.classList.toggle('bubble-near-top', expanded && !withSay && ly < 56);
+        document.body.classList.toggle('bubble-near-bottom', expanded && (withSay ? ly > 24 : ly > 82));
+        document.body.classList.toggle('bubble-near-left', expanded && !withSay && lx < 56);
+        document.body.classList.toggle('bubble-near-right', expanded && !withSay && lx > 82);
       }
 
       if (window.mpeApi.onBubbleLayout) {
         window.mpeApi.onBubbleLayout((layout) => applyBubbleLayout(layout));
+      }
+
+      async function syncBubbleExpand(hovering) {
+        if (!document.body.classList.contains('mode-bubble') || !window.mpeApi.bubbleExpand) return;
+        const sayEl = document.getElementById('kn-bubble-say');
+        const hasSay = Boolean(sayEl && !sayEl.classList.contains('hidden') && sayEl.textContent.trim());
+        try {
+          const res = await window.mpeApi.bubbleExpand({
+            expanded: Boolean(hovering || hasSay),
+            withSay: hasSay
+          });
+          if (res && res.ok) applyBubbleLayout(res);
+        } catch (_) {}
       }
 
       function applyWindowMode(mode, side) {
@@ -1555,6 +1582,7 @@
           if (sideDrawer) sideDrawer.classList.add('hidden');
           applyMiniLayoutState();
           applyBubbleLayout({ expanded: false, localX: 4, localY: 4 });
+          syncBubbleExpand(false);
           if (katarosMascot) katarosMascot.resume();
           updateSizeUi();
           return;
@@ -1648,10 +1676,7 @@
         bubbleHudEl.addEventListener('mouseenter', async () => {
           if (!document.body.classList.contains('mode-bubble')) return;
           if (bubbleHoverTimer) { clearTimeout(bubbleHoverTimer); bubbleHoverTimer = null; }
-          try {
-            const res = await window.mpeApi.bubbleExpand(true);
-            if (res && res.ok) applyBubbleLayout(res);
-          } catch (_) {}
+          await syncBubbleExpand(true);
         });
         bubbleHudEl.addEventListener('mouseleave', () => {
           if (!document.body.classList.contains('mode-bubble')) return;
@@ -1660,12 +1685,7 @@
             bubbleHoverTimer = null;
             if (!document.body.classList.contains('mode-bubble')) return;
             if (bubbleHudEl.matches(':hover')) return;
-            const sayEl = document.getElementById('kn-bubble-say');
-            if (sayEl && !sayEl.classList.contains('hidden')) return;
-            try {
-              const res = await window.mpeApi.bubbleExpand(false);
-              if (res && res.ok) applyBubbleLayout(res);
-            } catch (_) {}
+            await syncBubbleExpand(false);
           }, 180);
         });
       }
@@ -1677,11 +1697,7 @@
         say.classList.toggle('hidden', !text);
         say.classList.toggle('is-answer', kind === 'answer');
         if (document.body.classList.contains('mode-bubble') && window.mpeApi.bubbleExpand) {
-          if (text) {
-            window.mpeApi.bubbleExpand(true).then((res) => { if (res && res.ok) applyBubbleLayout(res); }).catch(() => {});
-          } else if (bubbleHudEl && !bubbleHudEl.matches(':hover')) {
-            window.mpeApi.bubbleExpand(false).then((res) => { if (res && res.ok) applyBubbleLayout(res); }).catch(() => {});
-          }
+          syncBubbleExpand(Boolean(bubbleHudEl && bubbleHudEl.matches(':hover')));
         }
       }
       knBubbleSayRef = knBubbleSay;
@@ -2673,7 +2689,7 @@
         if (window.KatarosMascot3D && window.KatarosMascot3D.setModeAll) window.KatarosMascot3D.setModeAll('idle');
         if (document.body.classList.contains('mode-bubble')) {
           const plain = (contentEl.textContent || '').replace(/\s+/g, ' ').trim();
-          knBubbleSayRef(plain.length > 150 ? `${plain.slice(0, 150)}…` : plain || 'Pronto.', 'answer');
+          knBubbleSayRef(plain.length > 220 ? `${plain.slice(0, 220)}…` : plain || 'Pronto.', 'answer');
         }
         sendBtn.disabled = false;
         msgs.scrollTop = msgs.scrollHeight;

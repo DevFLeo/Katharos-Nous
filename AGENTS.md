@@ -11,6 +11,7 @@
 - Chamar explicitamente `app.setAppUserModelId('DevFLeo.KatharosNousAI')` de forma sincrona no topo de `main.js` antes de criar janelas.
 - Garantir a presenca de um atalho oficial `.lnk` em `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Katharos Nous - katharos AI.lnk`, apontando para `Katharos.exe` com `assets/icon.ico` e `AppUserModelID`.
 - Manter registro em `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` apontando para `"...\Katharos.exe" --startup` para iniciar automaticamente junto com o Windows em coexistencia com o M.P.E.
+- O processo do Katharos roda como `codigo/node_modules/electron/dist/Katharos Nous.exe`: copia do `electron.exe` com nome, descricao e icone do Katharos (e o que o Gerenciador de Tarefas mostra), gerada por `codigo/scripts/brand-electron.mjs` no `npm install` (postinstall) ou com `npm run brand`. O `Katharos.exe` abre essa copia e so usa o `electron.exe` se ela nao existir.
 
 ## 3. Foco Nativo Win32 e Entrega de Texto Entre Sistemas
 - Processos em segundo plano do Windows sofrem bloqueio de foco (`LockSetForegroundWindow`). Para ativar confiavelmente a janela de destino (Telegram, Bloco de Notas, Word, etc.) antes de enviar `Ctrl+V`, manter o pulso da tecla `Alt` (`VK_MENU`), seguida de `AttachThreadInput` e `SetForegroundWindow`, com desarme previo de modificadores (`KEYEVENTF_KEYUP`).

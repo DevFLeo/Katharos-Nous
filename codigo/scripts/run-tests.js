@@ -1129,6 +1129,7 @@ async function main() {
     assert.ok(/body\.mode-bubble\s*\.mini-node-ring\s*\{[^}]*width:\s*66px\s*!important[^}]*height:\s*66px\s*!important[^}]*border-radius:\s*12px\s*!important[^}]*rgba\(16,\s*24,\s*38/.test(theme) && /\.bar-mascot\s*\{[^}]*rgba\(16,\s*24,\s*38/.test(theme), 'icone minimizado precisa fundo escuro translucido e formato quadrado com borda');
     assert.ok(appJs.includes("document.body.classList.remove('mode-full', 'mode-bar', 'bar-collapsed', 'chat-open')"), 'minimizar da tela cheia deve limpar mode-full e chat-open');
     assert.ok(appJs.includes("if (document.body.classList.contains('mode-full')) return;"), 'tela cheia nao pode permitir arrastar o icone solto dentro da janela');
+    assert.ok(mainJs.includes('BUBBLE_SAY_SIZE') && /left:\s*76px/.test(theme) && /right:\s*76px/.test(theme), 'balao verde da resposta deve aparecer ao lado do icone sem cobrir o mascote');
   });
   //@@ROTAS_NEXT@@
 

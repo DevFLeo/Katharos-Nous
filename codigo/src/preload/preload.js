@@ -29,7 +29,7 @@ contextBridge.exposeInMainWorld('mpeApi', {
   miniResizeStart: (edge) => ipcRenderer.send('mpe:mini-resize-start', edge),
   miniResizeEnd: () => ipcRenderer.send('mpe:mini-resize-end'),
   barExpand: (expanded) => ipcRenderer.invoke('mpe:bar-expand', Boolean(expanded)),
-  bubbleExpand: (expanded) => ipcRenderer.invoke('mpe:bubble-expand', Boolean(expanded)),
+  bubbleExpand: (payload) => ipcRenderer.invoke('mpe:bubble-expand', payload),
   onBubbleLayout: (callback) => ipcRenderer.on('mpe:bubble-layout', (_event, layout) => callback(layout)),
   resetMiniLayout: () => ipcRenderer.invoke('mpe:reset-mini-layout'),
   onChatSize: (cb) => ipcRenderer.on('mpe:chat-size', (_e, size) => cb(size)),
